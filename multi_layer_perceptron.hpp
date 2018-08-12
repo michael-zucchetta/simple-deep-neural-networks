@@ -6,28 +6,25 @@
 
 class MultiLayerPerceptron {
   private:
-    double hidden_neurons;
+    unsigned int layers; 
     unsigned int epochs;
-    double size_outputs;
-    double labels_unique_size;
+    int size_outputs;
+    int labels_unique_size;
     float learning_rate;
     bool first_time_training;
     std::string activation_function;
-    std::vector<std::vector<double> > w1;
-    std::vector<std::vector<double> > dw1;
-    std::vector<std::vector<double> > w2;
-    std::vector<std::vector<double> > dw2;
-    std::vector<double> z1;
-    std::vector<double> z2;
-    std::vector<double> h;
-    std::vector<double> o;
+    std::vector<std::vector<std::vector<double> > > weights;
+    std::vector<std::vector<std::vector<double> > > weight_derivatives;
+    std::vector<std::vector<double> > stored_activated_values;
+    std::vector<std::vector<double> > zetas;
+    unsigned int *hidden_neurons;
     double get_random();
-    void randomize(unsigned int inputs_size);
+    void initialize(unsigned int inputs_size);
     std::vector<double> transform_label(double label);
   public:
-    MultiLayerPerceptron(double, double, int, double, std::string);
-    void forward_propagation(std::vector<double> X);
-    double back_propagation(std::vector<double> X, std::vector<double> y);
+    MultiLayerPerceptron(unsigned int[], unsigned int, unsigned int, double, unsigned int, std::string);
+    std::vector<double> forward_propagation(std::vector<double> X);
+    double back_propagation(std::vector<double> X, std::vector<double> y, std::vector<double> outputs);
     void update_weights();
     void train(std::vector< std::vector<double> > training_set, std::vector<double> labels);
     double predict(std::vector<double> item);

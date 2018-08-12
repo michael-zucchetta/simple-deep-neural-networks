@@ -36,8 +36,9 @@ void executeLetterData() {
   auto dataset_and_labels = reader.read_letters_data();
   std::vector< std::vector<double> > dataset = std::get<0>(dataset_and_labels);
   std::vector<double> labels = std::get<1>(dataset_and_labels);
-  MultiLayerPerceptron mlp = MultiLayerPerceptron(128, 26, 1000, 0.001, "sigmoidal");
-
+  unsigned int hidden_neurons[] = { 128, 64 };
+  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00001, 1, "relu");
+  std::cout<<"Initializing"<<std::endl;
   auto splitted_dataset_tuple = split_dataset(dataset, labels, 0.8);
   std::vector< std::vector<double >> training_set = std::get<0>(splitted_dataset_tuple);
   std::vector<double> training_labels = std::get<1>(splitted_dataset_tuple);
