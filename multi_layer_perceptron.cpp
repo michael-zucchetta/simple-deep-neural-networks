@@ -87,9 +87,7 @@ std::vector<double> activation(std::vector<double> values, std::string activatio
 }
 
 std::vector<double> derivative_activation(std::vector<double> values, std::string activation) {
-  std::cout<<"CICCIO "<<" " <<values.size()<<std::endl;
   std::vector<double> activated_values(values.size());
-  std::cout<<"CICCIO 2"<<std::endl;
   return activated_values;
   for (int i = 0; i < values.size(); ++i) {
     double value;
@@ -146,21 +144,18 @@ std::vector<double> MultiLayerPerceptron::forward_propagation(std::vector<double
 }
 
 double MultiLayerPerceptron::back_propagation(std::vector<double> X, std::vector<double> targets, std::vector<double> outputs) {
-  std::vector<double> delta_output(targets.size());
+  std::vector<double> delta_output(outputs.size());
   for (int i = 0; i < outputs.size(); ++i) {
     delta_output[i] = targets[i] - outputs[i];
   }
-  // std::cout<<"HOLA"<<" "<<delta_output.size()<<std::endl;
   std::vector<double> d_z(delta_output.size());
   // std::vector<double> der_sigm_z_2 = derivative_activation(this->zetas[this->layers], activation_function);
   for (int y = 0; y < delta_output.size(); ++y) {
       d_z[y] = delta_output[y];
   }
 
-  // std::cout<<"HOLA 2"<<std::endl;
   for (int i = this->layers - 1; i >= 0; i--) {
-    std::cout<<"11.1 CICCIO "<<" " << i<< " "<< (i >= 0) <<std::endl;
-    std::vector<double> der_sigm_z = derivative_activation(this->zetas.at(i), activation_function);
+    std::vector<double> der_sigm_z = derivative_activation(this->zetas[i], activation_function);
     std::vector<double> prev_d_z = d_z;
     d_z = std::vector<double>(hidden_neurons[i], 0.0);
     for (int y = 0; y < this->weights[i].size(); ++y) {
@@ -168,14 +163,13 @@ double MultiLayerPerceptron::back_propagation(std::vector<double> X, std::vector
         d_z[x] += this->weights[i][y][x] * prev_d_z[y] * der_sigm_z[x];
       }
     }
-    // std::cout<<"HOLA 3 "<<prev_d_z.size()<<" " <<d_z.size()<<std::endl;
     for (int y = 0; y < prev_d_z.size(); ++y) {
       for (int x = 0; x < this->stored_activated_values[i].size(); ++x) {
-        std::cout<<"1.1 "<< prev_d_z.size()<< " " << this->stored_activated_values[i].size() << " "<< i<<" " <<y<< " " << x<< " "<< i<< " " <<this->weight_derivatives[i + 1][y].size()<<" " << this->weight_derivatives[i + 1].size()<< " " << this->weight_derivatives.size() <<std::endl;
+        // std::cout<<"1.1 "<< prev_d_z.size()<< " " << this->stored_activated_values[i].size() << " "<< i<<" " <<y<< " " << x<< " "<< i<< " " <<this->weight_derivatives[i + 1][y].size()<<" " << this->weight_derivatives[i + 1].size()<< " " << this->weight_derivatives.size() <<std::endl;
         this->weight_derivatives[i + 1][y][x] += prev_d_z[y] * this->stored_activated_values[i][x];
       }
     }
-    std::cout<<"2.1 CICCIO "<<" " << i<< " "<< (i >= 0) <<std::endl;
+    std::cout<<"2.1 CICCIO "<<" " << i<< " "<< hidden_neurons[i]<<" "<<(i >= 0) <<std::endl;
   }
   std::cout<<"CIAO OHI"<<std::endl;
   for (int y = 0; y < d_z.size(); ++y) {
@@ -243,6 +237,7 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
   }
   std::cout<<"Start training"<<std::endl;
   std::vector< std::vector<double> > new_labels(labels.size());
+  std::cout<<"Start training 2"<<std::endl;
   // transform labels
   std::transform(labels.begin(), labels.end(), new_labels.begin(), [this] (double label) {
       return transform_label(label);
