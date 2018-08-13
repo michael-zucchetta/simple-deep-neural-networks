@@ -7,8 +7,7 @@
 #include <cmath>
 
 auto split_dataset(std::vector< std::vector<double> > dataset, std::vector<double> labels, double training_set_proportion) {
-  std::vector<int> indexes;
-  indexes.reserve(dataset.size());
+  std::vector<int> indexes(dataset.size(), 0);
   for (int i = 0; i < dataset.size(); ++i) {
     indexes[i] = i;
   }
@@ -36,8 +35,9 @@ void executeLetterData() {
   auto dataset_and_labels = reader.read_letters_data();
   std::vector< std::vector<double> > dataset = std::get<0>(dataset_and_labels);
   std::vector<double> labels = std::get<1>(dataset_and_labels);
-  unsigned int hidden_neurons[] = { 128, 64 };
-  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00001, 2, "relu");
+  unsigned int hidden_neurons[] = { 128, 15 };
+  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00003, 1, "relu");
+  // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00000003, 2, "relu");
   std::cout<<"Initializing"<<std::endl;
   auto splitted_dataset_tuple = split_dataset(dataset, labels, 0.8);
   std::vector< std::vector<double >> training_set = std::get<0>(splitted_dataset_tuple);
