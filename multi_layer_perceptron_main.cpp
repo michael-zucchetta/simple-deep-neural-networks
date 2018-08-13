@@ -37,7 +37,7 @@ void executeLetterData() {
   std::vector< std::vector<double> > dataset = std::get<0>(dataset_and_labels);
   std::vector<double> labels = std::get<1>(dataset_and_labels);
   unsigned int hidden_neurons[] = { 128, 64 };
-  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00001, 1, "relu");
+  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00001, 2, "relu");
   std::cout<<"Initializing"<<std::endl;
   auto splitted_dataset_tuple = split_dataset(dataset, labels, 0.8);
   std::vector< std::vector<double >> training_set = std::get<0>(splitted_dataset_tuple);
