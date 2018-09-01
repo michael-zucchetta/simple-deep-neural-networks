@@ -16,7 +16,8 @@ auto split_dataset(std::vector< std::vector<double> > dataset, std::vector<doubl
   std::vector< std::vector<double >> test_set(0);
   std::vector<double> test_labels(0);
   // shuffle indexes
-  std::random_shuffle(indexes.begin(), indexes.end());
+  std::random_device rng;
+  std::shuffle(indexes.begin(), indexes.end(), rng);
   int idx;
   for (idx = 0; idx < dataset.size() * training_set_proportion; ++idx) {
     training_set.push_back(dataset[indexes[idx]]);
@@ -35,8 +36,8 @@ void executeLetterData() {
   auto dataset_and_labels = reader.read_letters_data();
   std::vector< std::vector<double> > dataset = std::get<0>(dataset_and_labels);
   std::vector<double> labels = std::get<1>(dataset_and_labels);
-  unsigned int hidden_neurons[] = { 128, 64, 32 };
-  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.001, 3, "relu");
+  int hidden_neurons[] = { 208, 104, 52 };
+  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 300, 0.0005, 0.9, 3, "relu");
   // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 50, 0.03, 2, "sigmoidal");
   // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 50, 0.00003, 1, "relu");
   // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00000003, 2, "relu");
@@ -49,28 +50,29 @@ void executeLetterData() {
  
   mlp.train(training_set, training_labels);
   
-  unsigned int training_correct_predictions = 0;
-  for (int i = 0; i < test_set.size(); ++i) {
+  int training_correct_predictions = 0;
+  for (int i = 0; i < training_set.size(); ++i) {
     double prediction = mlp.predict(training_set[i]);
     if (prediction == training_labels[i]) {
       training_correct_predictions++; 
     }
   }
-  std::cout<<"\nAccuracy on training set is: "<<(double) training_correct_predictions / test_set.size();
   
-  unsigned int test_correct_predictions = 0;
+  int test_correct_predictions = 0;
   for (int i = 0; i < test_set.size(); ++i) {
     double prediction = mlp.predict(test_set[i]);
     if (prediction == test_labels[i]) {
       test_correct_predictions++; 
     }
   }
-  std::cout<<"\nAccuracy on test set is: "<<(double) test_correct_predictions / test_set.size();
+  std::cout<<"\nAccuracy on training set is: "<<(double) training_correct_predictions / training_set.size()<<std::endl;
+  std::cout<<"\nAccuracy on test set is: "<<(double) test_correct_predictions / test_set.size()<<std::endl;
 
 }
 
 int main(int argc, char **argv) {
   if (argc <= 1) {
+    executeLetterData();
     return 1;
   } else {
     std::string task_type = argv[1];
