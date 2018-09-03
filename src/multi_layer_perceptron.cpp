@@ -134,7 +134,7 @@ std::vector<double> derivative_activation(std::vector<double> values, std::strin
 
 // the real init is done in the first training as the MultiLayerPerceptron needs to know the size of the inputs and outputs for initializing
 // the weights
-MultiLayerPerceptron::MultiLayerPerceptron(int _hidden_neurons[], int _size_outputs, int _epochs, float _learning_rate, float _momentum, int _layers, std::string _activation_function) {
+MultiLayerPerceptron::MultiLayerPerceptron(int _hidden_neurons[], int _size_outputs, int _epochs, float _learning_rate, float _momentum, int _layers, int _batch_size, std::string _activation_function) {
   srand((int) time (NULL)); // generator
   size_outputs = _size_outputs;
   hidden_neurons = _hidden_neurons;
@@ -143,78 +143,90 @@ MultiLayerPerceptron::MultiLayerPerceptron(int _hidden_neurons[], int _size_outp
   momentum = _momentum;
   first_time_training = true;
   layers = _layers;
+  batch_size = _batch_size;
   activation_function = _activation_function;
-  this->zetas = std::vector<std::vector<double> >(layers + 1);
-  this->stored_activated_values = std::vector<std::vector<double> >(layers + 1);
+  this->zetas = std::vector<std::vector<std::vector<double> > >(this->batch_size);
+  this->stored_activated_values = std::vector<std::vector<std::vector<double> > >(this->batch_size);
+  for (int i = 0; i < this->batch_size; ++i) {
+    this->zetas[i] = std::vector<std::vector<double> >(layers + 1);
+    this->stored_activated_values[i] = std::vector<std::vector<double> >(layers + 1);
+  }
 }
 
-std::vector<double> MultiLayerPerceptron::forward_propagation(std::vector<double> X) {
-  for (int i = 0; i < this->weights.size(); i++) {
-    std::vector<double> zeta(this->weights[i].size());
-    std::vector<double> activated_weights;
-    if (i != 0) {
-      activated_weights = activation(this->zetas[i - 1], this->activation_function);
-      this->stored_activated_values[i - 1] = activated_weights;
+std::vector<std::vector<double> > MultiLayerPerceptron::forward_propagation(std::vector<std::vector<double> > X) {
+  std::vector<std::vector<double> > outputs_by_batch(X.size());
+  for (int z = 0; z < X.size(); ++z) {
+    for (int i = 0; i < this->weights.size(); i++) {
+      auto zeta = std::vector<double>(this->weights[i].size());
+      std::vector<double> activated_weights;
+      if (i != 0) {
+        activated_weights = activation(this->zetas[z][i - 1], this->activation_function);
+        this->stored_activated_values[z][i - 1] = activated_weights;
+      }
+      for (int y = 0; y < this->weights[i].size(); ++y) {
+        double tmp_z = 0.0;
+        for (int x = 0; x < this->weights[i][y].size(); ++x) {
+          if (i == 0) {
+            tmp_z += this->weights[i][y][x] * X[z][x]; 
+          } else { 
+            tmp_z += this->weights[i][y][x] * activated_weights[x];
+          }
+        }
+        zeta[y] = tmp_z;
+      }
+      this->zetas[z][i] = zeta;
     }
-    for (int y = 0; y < this->weights[i].size(); ++y) {
-      double tmp_z = 0.0;
-      for (int x = 0; x < this->weights[i][y].size(); ++x) {
-        if (i == 0) {
-          tmp_z += this->weights[i][y][x] * X[x]; 
-        } else { 
-          tmp_z += this->weights[i][y][x] * activated_weights[x];
+    auto outputs = activation(this->zetas[z][this->layers], "softmax");
+    this->stored_activated_values[z][this->layers] = outputs;
+    outputs_by_batch[z] = outputs;
+  }
+  return outputs_by_batch;
+}
+
+double MultiLayerPerceptron::back_propagation(std::vector<std::vector<double> > X, std::vector<std::vector<double> > targets, std::vector<std::vector<double> > outputs) {
+  double error = 0.0;
+  for (int z = 0; z < X.size(); ++z) {
+    std::vector<double> delta_output(outputs[z].size());
+    for (int i = 0; i < outputs[z].size(); ++i) {
+      // delta_output[i] = targets[i] - outputs[i];
+      delta_output[i] = outputs[z][i] - targets[z][i];
+    }
+    std::vector<double> d_z(delta_output.size());
+    // std::vector<double> der_sigm_z_2 = derivative_activation(outputs, activation_function);
+    /*for (int y = 0; y < delta_output.size(); ++y) {
+        d_z[y] = delta_output[y];// * der_sigm_z_2[y];
+    }*/
+    d_z = delta_output;//derivative_activation(delta_output, "sigmoidal");
+    for (int i = this->layers - 1; i >= 0; i--) {
+      std::vector<double> der_sigm_z = derivative_activation(this->zetas[z][i], this->activation_function);
+      std::vector<double> prev_d_z = d_z;
+      d_z = std::vector<double>(hidden_neurons[i], 0.0);
+      for (int y = 0; y < this->weights[i + 1].size(); ++y) {
+        for (int x = 0; x < this->weights[i + 1][y].size(); ++x) {
+          d_z[x] += this->weights[i + 1][y][x] * prev_d_z[y] * der_sigm_z[x];
         }
       }
-      zeta[y] = tmp_z;
-    }
-    this->zetas[i] = zeta;
-  }
-  auto outputs = activation(this->zetas[this->layers], "softmax");
-  this->stored_activated_values[this->layers] = outputs;
-  return outputs; 
-}
-
-double MultiLayerPerceptron::back_propagation(std::vector<double> X, std::vector<double> targets, std::vector<double> outputs) {
-  std::vector<double> delta_output(outputs.size());
-  for (int i = 0; i < outputs.size(); ++i) {
-    // delta_output[i] = targets[i] - outputs[i];
-    delta_output[i] = outputs[i] - targets[i];
-  }
-  std::vector<double> d_z(delta_output.size());
-  // std::vector<double> der_sigm_z_2 = derivative_activation(outputs, activation_function);
-  /*for (int y = 0; y < delta_output.size(); ++y) {
-      d_z[y] = delta_output[y];// * der_sigm_z_2[y];
-  }*/
-  d_z = delta_output;//derivative_activation(delta_output, "sigmoidal");
-  for (int i = this->layers - 1; i >= 0; i--) {
-    std::vector<double> der_sigm_z = derivative_activation(this->zetas[i], this->activation_function);
-    std::vector<double> prev_d_z = d_z;
-    d_z = std::vector<double>(hidden_neurons[i], 0.0);
-    for (int y = 0; y < this->weights[i + 1].size(); ++y) {
-      for (int x = 0; x < this->weights[i + 1][y].size(); ++x) {
-        d_z[x] += this->weights[i + 1][y][x] * prev_d_z[y] * der_sigm_z[x];
+      for (int y = 0; y < prev_d_z.size(); ++y) {
+        for (int x = 0; x < this->stored_activated_values[z][i].size(); ++x) {
+          this->weight_derivatives[i + 1][y][x] += prev_d_z[y] * this->stored_activated_values[z][i][x];
+          //if (this->weight_derivatives[i + 1][y][x] == 0.0) {
+          //}
+        }
       }
     }
-    for (int y = 0; y < prev_d_z.size(); ++y) {
-      for (int x = 0; x < this->stored_activated_values[i].size(); ++x) {
-        this->weight_derivatives[i + 1][y][x] += prev_d_z[y] * this->stored_activated_values[i][x];
-        //if (this->weight_derivatives[i + 1][y][x] == 0.0) {
-        //}
+    for (int y = 0; y < d_z.size(); ++y) {
+      for (int x = 0; x < X[z].size(); ++x) {
+        this->weight_derivatives[0][y][x] += d_z[y] * X[z][x];
       }
     }
-  }
-  for (int y = 0; y < d_z.size(); ++y) {
-    for (int x = 0; x < X.size(); ++x) {
-      this->weight_derivatives[0][y][x] += d_z[y] * X[x];
+
+    for (int i = 0; i < delta_output.size(); ++i) {
+       // squared error
+      error += std::abs(delta_output[i]);
     }
   }
-
-  double error = 0.0;
-  for (int i = 0; i < delta_output.size(); ++i) {
-    // squared error
-    error += std::abs(delta_output[i]);
-  }
-  return pow(error, 2);
+  // std::cout<<"ERROR IS " << ( error / (double) X.size() )<<std::endl;
+  return pow(error / (double) X.size(), 2);
 }
 
 void MultiLayerPerceptron::update_weights(const int actual_batch_size) {
@@ -225,7 +237,7 @@ void MultiLayerPerceptron::update_weights(const int actual_batch_size) {
 	 // Gradient descent
          // std::cout<< this->prev_velocities[i][y][x]<< " " << average_weight_derivative << " FF 1: " <<(average_weight_derivative - this->prev_velocities[i][y][x] / (double)  actual_batch_size)<<std::endl;
 
-	 double velocity_momentum = this->momentum * this->prev_velocities[i][y][x] + (1 - this->momentum) * learning_rate * this->weight_derivatives[i][y][x];
+	 double velocity_momentum = this->momentum * this->prev_velocities[i][y][x] + (1 - this->momentum) * learning_rate * this->weight_derivatives[i][y][x] / (double) actual_batch_size;
 	 double velocity_nesterov = velocity_momentum + this->momentum * (velocity_momentum - this->prev_velocities[i][y][x]);
 	 // MOMENTUM double velocity = this->momentum * this->prev_velocities[i][y][x] + (1 - this->momentum) * learning_rate * this->weight_derivatives[i][y][x];
 	this->weights[i][y][x] = this->weights[i][y][x] - velocity_nesterov;
@@ -287,55 +299,63 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
   for (int i = 0; i < training_set.size(); ++i) {
     indexes[i] = i;
   }
-  this->batch_size = training_set.size() > 32? 32 : training_set.size();
   int batch_count = 0;
   for (int i = 0; i < epochs; ++i) {
     clock_t begin = clock();
     double loss = 0.0;
     // shuffle indexes
+    // std::shuffle(indexes.begin(), indexes.end(), r);
     std::shuffle(indexes.begin(), indexes.end(), r);
+    std::vector<std::vector<double> > shuffled_training_set(training_set.size());
+    std::vector<std::vector<double> > shuffled_labels(training_set.size());
     for (int ind = 0; ind < training_set.size(); ++ind) {
-      std::vector<double> outputs = this->forward_propagation(training_set[indexes[ind]]);
-      loss += this->back_propagation(training_set[indexes[ind]], new_labels[indexes[ind]], outputs);
-      batch_count++;
-      auto module_batch_count_size = (batch_count) % this->batch_size;
-      if (module_batch_count_size == 0 || ind + 1 == training_set.size()) {
-        auto actual_batch_size = 0;
-	if (module_batch_count_size == 0) {
-	  actual_batch_size = this->batch_size;
-	} else {
-	  actual_batch_size = training_set.size() % this->batch_size;
-	}
-	update_weights(actual_batch_size);
-        batch_count = 0;
-      }
+      shuffled_training_set[ind] = training_set[indexes[ind]];
+      shuffled_labels[ind] = new_labels[indexes[ind]];
     }
-    std::cout<<"Epoch n. "<<(i + 1)<<", with error "<<loss/(double) training_set.size()<<std::endl;
+    int size = training_set.size() / this->batch_size;
+    for (int ind = 0; ind < size; ++ind) {
+      
+      int actual_batch_size = 0;
+      if (shuffled_training_set.size() / ((ind + 1) * this->batch_size) == 0) {
+	actual_batch_size = shuffled_training_set.size() % ((ind + 1) * this->batch_size); 
+      } {
+        actual_batch_size = this->batch_size;
+      }
+      std::vector<std::vector<double> > training_batch(shuffled_training_set.begin() + this->batch_size * ind, shuffled_training_set.begin() + this->batch_size * ind + actual_batch_size);
+      std::vector<std::vector<double> > labels_batch(shuffled_labels.begin() + this->batch_size * ind, shuffled_labels.begin() + this->batch_size * ind + actual_batch_size);
+
+      std::vector<std::vector<double> > outputs = this->forward_propagation(training_batch);
+      loss += this->back_propagation(training_batch, labels_batch, outputs);
+      update_weights(actual_batch_size);
+    }
+    std::cout<<"Epoch n. "<<(i + 1)<<", with error "<<loss/(double) size<<std::endl;
     clock_t end = clock();
     std::cout<<"Time for single epoch is "<< double(end - begin) / CLOCKS_PER_SEC <<std::endl;
   }
 }
 
 double MultiLayerPerceptron::predict(std::vector<double> item) {
-	this->forward_propagation(item);
-  if (this->zetas[this->layers].size() == 1) {
+  std::vector<std::vector<double> > input_item(1);
+  input_item[0] = item;  
+  this->forward_propagation(input_item);
+  if (this->zetas[0][this->layers].size() == 1) {
     if (activation_function == "sigmoidal") { 
-      std::cout<<"Value predicted, before returning actual class: "<<this->zetas[this->layers][0]<<std::endl;
-      if (this->zetas[this->layers + 1][0] > 0.5) {
+      std::cout<<"Value predicted, before returning actual class: "<<this->zetas[0][this->layers][0]<<std::endl;
+      if (this->zetas[0][this->layers + 1][0] > 0.5) {
 		    return 1;
 	    } else {
 		    return 0;
 	    }
     } else {
       // else not classification
-      return this->zetas[this->layers][0];
+      return this->zetas[0][this->layers][0];
     }
   } else {
     int predicted_output = -1;
     double predicted_value = -1;
-    for (int i = 0; i < this->zetas[this->layers].size(); ++i) {
-      if (predicted_value < this->zetas[this->layers][i]) {
-        predicted_value = this->zetas[this->layers][i];
+    for (int i = 0; i < this->zetas[0][this->layers].size(); ++i) {
+      if (predicted_value < this->zetas[0][this->layers][i]) {
+        predicted_value = this->zetas[0][this->layers][i];
         predicted_output = i;
       }
     }
