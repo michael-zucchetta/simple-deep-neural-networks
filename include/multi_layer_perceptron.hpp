@@ -30,7 +30,9 @@ class MultiLayerPerceptron {
   public:
     MultiLayerPerceptron(int[], int, int, int, float, float, int, int, std::string);
     std::vector<std::vector<double> > forward_propagation(std::vector<std::vector<double> > &X, std::vector<int> &indexes, int index_from, int index_to);
+    double forward_and_propagate(std::vector<std::vector<double> > &X, std::vector<std::vector<double> > &y, std::vector<int> &indexes, int index_from, int index_to);
     double back_propagation(std::vector<std::vector<double> > &X, std::vector<std::vector<double> > &y, std::vector<std::vector<double> > &outputs, std::vector<int> &indexes, int index_from, int index_to);
+    int func(std::vector<int> &indexes);
     void update_weights(const int actual_batch_size);
     void train(std::vector< std::vector<double> > training_set, std::vector<double> labels);
     double predict(std::vector<double> item);

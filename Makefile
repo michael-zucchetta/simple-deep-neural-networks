@@ -26,7 +26,7 @@ build-wasm: clean
 		#--emrun -s WASM=1 -o a.html
 
 debug: clean
-	g++ -D_GLIBCXX_DEBUG -o ${PROGRAM} -std=c++17 \
+	g++ -O3 -D_GLIBCXX_DEBUG -o ${PROGRAM} -std=c++17 \
 		$(INC) $(SOURCES)	
 	./mlp letter-data
 

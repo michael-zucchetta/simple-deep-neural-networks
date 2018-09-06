@@ -37,7 +37,7 @@ void executeLetterData() {
   std::vector< std::vector<double> > dataset = std::get<0>(dataset_and_labels);
   std::vector<double> labels = std::get<1>(dataset_and_labels);
   int hidden_neurons[] = { 208, 104, 52 };
-  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 4, 26, 300, 0.005, 0.9, 3, 32, "relu");
+  MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 8, 26, 100, 0.1, 0.9, 3, 32, "relu");
   // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 50, 0.03, 2, "sigmoidal");
   // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 50, 0.00003, 1, "relu");
   // MultiLayerPerceptron mlp = MultiLayerPerceptron(hidden_neurons, 26, 1000, 0.00000003, 2, "relu");
