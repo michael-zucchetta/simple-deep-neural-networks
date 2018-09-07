@@ -32,7 +32,7 @@ auto LettersDataCSVReader::parse_line(std::string line) {
   } 
   return std::make_tuple(features, label_as_short);
 }
- 
+
 std::tuple<std::vector< std::vector<double> >, std::vector<double>> LettersDataCSVReader::read_letters_data() {
   std::string line;
   std::vector< std::vector<double> > dataset(0);
@@ -53,12 +53,12 @@ std::tuple<std::vector< std::vector<double> >, std::vector<double>> LettersDataC
   return std::make_tuple(dataset, labels); 
 }
 /*
-int main() {
-  LettersDataCSVReader l = LettersDataCSVReader();
-  auto dataset_and_labels = l.read_letters_data();
-  std::vector<double> labels = std::get<1>(dataset_and_labels);
-  for (int i = 0; i < labels.size(); ++i) {
-    std::cout<<"\nOHI "<<labels[i]<<" "<<std::get<0>(dataset_and_labels)[0][0];
-  }
-}
-*/
+   int main() {
+   LettersDataCSVReader l = LettersDataCSVReader();
+   auto dataset_and_labels = l.read_letters_data();
+   std::vector<double> labels = std::get<1>(dataset_and_labels);
+   for (int i = 0; i < labels.size(); ++i) {
+   std::cout<<"\nOHI "<<labels[i]<<" "<<std::get<0>(dataset_and_labels)[0][0];
+   }
+   }
+   */
