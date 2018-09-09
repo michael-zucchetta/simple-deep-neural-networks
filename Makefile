@@ -26,7 +26,7 @@ build-wasm: clean
 		#--emrun -s WASM=1 -o a.html
 
 debug: clean
-	g++ -D_GLIBCXX_DEBUG -o ${PROGRAM} -std=c++17 \
+	g++ -O3 -D_GLIBCXX_DEBUG -o ${PROGRAM} -std=c++17 \
 		$(INC) $(SOURCES)	
 	./mlp letter-data
 
@@ -35,8 +35,17 @@ run-letter-data: build
 	./mlp letter-data
 
 run-mnist-data: build
-	wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
-	wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
-	wget http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz
-	wget http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
+	#wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
+	#wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
+	#wget http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz
+	#wget http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
+	#gunzip train-images-idx3-ubyte.gz train-labels-idx1-ubyte.gz t10k-images-idx3-ubyte.gz t10k-labels-idx1-ubyte.gz
+	./mlp mnist
 
+run-zaland-mnist-data: build
+	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz
+	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz
+	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-images-idx3-ubyte.gz
+	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz
+	#gunzip train-images-idx3-ubyte.gz train-labels-idx1-ubyte.gz t10k-images-idx3-ubyte.gz t10k-labels-idx1-ubyte.gz
+	./mlp mnist
