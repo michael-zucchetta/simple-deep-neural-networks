@@ -33,8 +33,14 @@ class MultiLayerPerceptron {
     double forward_and_propagate(std::vector<std::vector<double> > &X, std::vector<std::vector<double> > &y, std::vector<int> &indexes, int index_from, int index_to, int thread_index);
     double back_propagation(std::vector<std::vector<double> > &X, std::vector<std::vector<double> > &y, std::vector<std::vector<double> > &outputs, std::vector<int> &indexes, int index_from, int index_to, int thread_index);
     int func(std::vector<int> &indexes);
+    void initialize_for_input_size(int inputs_size);
     void update_weights(const int actual_batch_size);
+    double train_single(std::vector<double> item, double label);
     void train(std::vector< std::vector<double> > training_set, std::vector<double> labels);
     double predict(std::vector<double> item);
+    std::vector<double> predict_proba(std::vector<double> item);
+    std::vector<int> get_network_shape() const;
+    std::vector<std::vector<double> > get_layer_activations() const;
+    std::vector<std::vector<std::vector<double> > > get_weights() const;
 };
 #endif

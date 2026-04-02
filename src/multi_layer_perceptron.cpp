@@ -301,6 +301,28 @@ double MultiLayerPerceptron::forward_and_propagate(std::vector<std::vector<doubl
 
 int MultiLayerPerceptron::func(std::vector<int> &indexes) { return 1 * 2 * 3 * this->learning_rate; }
 
+void MultiLayerPerceptron::initialize_for_input_size(int inputs_size) {
+  if (first_time_training) {
+    labels_unique_size = this->size_outputs;
+    this->initialize(inputs_size);
+    first_time_training = false;
+  }
+}
+
+double MultiLayerPerceptron::train_single(std::vector<double> item, double label) {
+  initialize_for_input_size(item.size());
+  std::vector<std::vector<double> > training_set(1);
+  std::vector<std::vector<double> > transformed_labels(1);
+  std::vector<int> indexes(1);
+  training_set[0] = item;
+  transformed_labels[0] = transform_label(label);
+  indexes[0] = 0;
+  auto outputs = this->forward_propagation(training_set, indexes, 0, 1, 0);
+  double loss = this->back_propagation(training_set, transformed_labels, outputs, indexes, 0, 1, 0);
+  update_weights(1);
+  return loss;
+}
+
 void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set, std::vector<double> labels) {
   std::cout.precision(17);
   if (first_time_training) {
@@ -370,33 +392,66 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
 }
 
 double MultiLayerPerceptron::predict(std::vector<double> item) {
-  std::vector<std::vector<double> > input_item(1);
-  std::vector<int> indexes(1);
-
-  input_item[0] = item;
-  indexes[0] = 0;
-  this->forward_propagation(input_item, indexes, 0, 1, 0);
-  if (this->zetas[0][this->layers].size() == 1) {
+  auto outputs = predict_proba(item);
+  if (outputs.size() == 1) {
     if (activation_function == "sigmoidal") {
       std::cout<<"Value predicted, before returning actual class: "<<this->zetas[0][this->layers][0]<<std::endl;
-      if (this->zetas[0][this->layers + 1][0] > 0.5) {
+      if (outputs[0] > 0.5) {
         return 1;
       } else {
         return 0;
       }
     } else {
-      // else not classification
       return this->zetas[0][this->layers][0];
     }
   } else {
     int predicted_output = -1;
     double predicted_value = -1;
-    for (int i = 0; i < this->zetas[0][this->layers].size(); ++i) {
-      if (predicted_value < this->zetas[0][this->layers][i]) {
-        predicted_value = this->zetas[0][this->layers][i];
+    for (int i = 0; i < outputs.size(); ++i) {
+      if (predicted_value < outputs[i]) {
+        predicted_value = outputs[i];
         predicted_output = i;
       }
     }
     return predicted_output;
   }
+}
+
+std::vector<double> MultiLayerPerceptron::predict_proba(std::vector<double> item) {
+  initialize_for_input_size(item.size());
+  std::vector<std::vector<double> > input_item(1);
+  std::vector<int> indexes(1);
+
+  input_item[0] = item;
+  indexes[0] = 0;
+  auto outputs = this->forward_propagation(input_item, indexes, 0, 1, 0);
+  return outputs[0];
+}
+
+std::vector<int> MultiLayerPerceptron::get_network_shape() const {
+  std::vector<int> shape;
+  if (this->weights.empty()) {
+    return shape;
+  }
+  shape.push_back(this->weights[0][0].size());
+  for (const auto &layer : this->weights) {
+    shape.push_back(layer.size());
+  }
+  return shape;
+}
+
+std::vector<std::vector<double> > MultiLayerPerceptron::get_layer_activations() const {
+  std::vector<std::vector<double> > activations;
+  if (this->stored_activated_values.empty()) {
+    return activations;
+  }
+  activations = this->stored_activated_values[0];
+  if (!this->weights.empty() && activations.size() < this->weights.size()) {
+    activations.resize(this->weights.size());
+  }
+  return activations;
+}
+
+std::vector<std::vector<std::vector<double> > > MultiLayerPerceptron::get_weights() const {
+  return this->weights;
 }

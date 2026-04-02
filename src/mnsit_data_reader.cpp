@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 namespace mnist {
   int from_byte_to_int(int number_byte) {
