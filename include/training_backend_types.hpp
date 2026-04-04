@@ -15,6 +15,8 @@ struct FlatNetworkModel {
   std::vector<FlatLayerWeights> layers;
   std::string activation_function;
   int output_size = 0;
+  float learning_rate = 0.0f;
+  float momentum = 0.0f;
 };
 
 struct TrainingBatch {
@@ -38,6 +40,8 @@ struct BatchTrainingResult {
   std::vector<LayerBatchValues> layer_zetas;
   std::vector<LayerBatchValues> layer_activations;
   std::vector<FlatLayerWeights> layer_weight_gradients;
+  std::vector<FlatLayerWeights> updated_weights;
+  bool weights_updated_on_device = false;
 };
 
 #endif

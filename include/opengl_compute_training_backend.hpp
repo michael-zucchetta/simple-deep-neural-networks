@@ -13,6 +13,7 @@ class OpenGLComputeTrainingBackend : public GPUTrainingBackend {
     std::string name() const override;
     bool is_available() const override;
     const std::string &last_error() const override;
+    bool updates_weights_on_device() const override;
     bool initialize(const FlatNetworkModel &model) override;
     bool synchronize_model(const FlatNetworkModel &model) override;
     bool forward_batch(const TrainingBatch &batch, BatchTrainingResult *result) override;

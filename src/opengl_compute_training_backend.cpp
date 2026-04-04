@@ -244,6 +244,10 @@ const std::string &OpenGLComputeTrainingBackend::last_error() const {
   return error_message;
 }
 
+bool OpenGLComputeTrainingBackend::updates_weights_on_device() const {
+  return false;
+}
+
 void OpenGLComputeTrainingBackend::set_unavailable(const std::string &message) {
   available = false;
   error_message = message;
@@ -704,6 +708,10 @@ bool OpenGLComputeTrainingBackend::is_available() const {
 
 const std::string &OpenGLComputeTrainingBackend::last_error() const {
   return error_message;
+}
+
+bool OpenGLComputeTrainingBackend::updates_weights_on_device() const {
+  return false;
 }
 
 bool OpenGLComputeTrainingBackend::initialize(const FlatNetworkModel &) {

@@ -10,6 +10,7 @@
 #include <future>
 #include <thread>
 #include <chrono>
+#include <iomanip>
 #include <stdexcept>
 #include "multi_layer_perceptron.hpp"
 #include "gpu_training_backend.hpp"
@@ -397,11 +398,22 @@ double MultiLayerPerceptron::forward_and_propagate(std::vector<std::vector<doubl
     }
 
     for (int layer_index = 0; layer_index < this->layers + 1; ++layer_index) {
-      const FlatLayerWeights &gradient_layer = result.layer_weight_gradients[layer_index];
-      int gradient_offset = 0;
-      for (int neuron_index = 0; neuron_index < gradient_layer.output_size; ++neuron_index) {
-        for (int input_index = 0; input_index < gradient_layer.input_size; ++input_index) {
-          this->weight_derivatives[layer_index][neuron_index][input_index] += gradient_layer.values[gradient_offset++];
+      if (this->training_backend->updates_weights_on_device() && result.weights_updated_on_device) {
+        const FlatLayerWeights &updated_layer = result.updated_weights[layer_index];
+        int weight_offset = 0;
+        for (int neuron_index = 0; neuron_index < updated_layer.output_size; ++neuron_index) {
+          for (int input_index = 0; input_index < updated_layer.input_size; ++input_index) {
+            this->weights[layer_index][neuron_index][input_index] = updated_layer.values[weight_offset++];
+            this->weight_derivatives[layer_index][neuron_index][input_index] = 0.0;
+          }
+        }
+      } else {
+        const FlatLayerWeights &gradient_layer = result.layer_weight_gradients[layer_index];
+        int gradient_offset = 0;
+        for (int neuron_index = 0; neuron_index < gradient_layer.output_size; ++neuron_index) {
+          for (int input_index = 0; input_index < gradient_layer.input_size; ++input_index) {
+            this->weight_derivatives[layer_index][neuron_index][input_index] += gradient_layer.values[gradient_offset++];
+          }
         }
       }
     }
@@ -501,7 +513,9 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
       // auto forward_propagate_thread = std::async(&MultiLayerPerceptron::forward_propagation, this, training_set, indexes, index_from, index_to);
       // auto forward_propagate_thread = std::async(&func);
       // loss += forward_propagate_thread.get();
-      update_weights(actual_batch_size);
+      if (!(this->uses_gpu_backend() && this->training_backend->updates_weights_on_device())) {
+        update_weights(actual_batch_size);
+      }
       if ((ind + 1) % progress_interval == 0 || ind + 1 == size) {
         const auto progress_now = Clock::now();
         const double seconds_since_last_update =
@@ -512,8 +526,8 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
           << "Epoch " << (i + 1) << "/" << epochs
           << " progress: " << (ind + 1) << "/" << size
           << " batches"
-          << " | +" << seconds_since_last_update << "s"
-          << " | elapsed " << epoch_elapsed_seconds << "s"
+          << " | +" << std::fixed << std::setprecision(3) << seconds_since_last_update << "s"
+          << " | elapsed " << std::fixed << std::setprecision(3) << epoch_elapsed_seconds << "s"
           << std::endl;
         last_progress_update = progress_now;
       }
@@ -595,6 +609,8 @@ FlatNetworkModel MultiLayerPerceptron::export_flat_model() const {
   model.shape = get_network_shape();
   model.activation_function = this->activation_function;
   model.output_size = this->size_outputs;
+  model.learning_rate = this->learning_rate;
+  model.momentum = this->momentum;
 
   model.layers.reserve(this->weights.size());
   for (const auto &layer : this->weights) {
@@ -618,14 +634,14 @@ bool MultiLayerPerceptron::set_execution_backend(const std::string &backend_name
     return true;
   }
 
-  if (backend_name != "gpu") {
+  if (backend_name != "gpu" && backend_name != "opengl" && backend_name != "opengl-compute" && backend_name != "opencl") {
     if (error_message != nullptr) {
       *error_message = "Unknown backend: " + backend_name;
     }
     return false;
   }
 
-  auto backend = create_default_gpu_training_backend();
+  auto backend = create_gpu_training_backend(backend_name);
   if (!backend->is_available()) {
     if (error_message != nullptr) {
       *error_message = backend->last_error().empty() ? "GPU backend is unavailable" : backend->last_error();
@@ -649,5 +665,5 @@ std::string MultiLayerPerceptron::get_execution_backend() const {
 }
 
 bool MultiLayerPerceptron::uses_gpu_backend() const {
-  return this->execution_backend == "gpu" && this->training_backend != nullptr;
+  return this->execution_backend != "cpu" && this->training_backend != nullptr;
 }

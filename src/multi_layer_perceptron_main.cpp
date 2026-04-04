@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
     } else if (task_type == "mnist") {
       executeMnist(backend_name);
     } else {
-      std::cerr << "Usage: ./mlp [letter-data|mnist] [--backend cpu|gpu]" << std::endl;
+      std::cerr << "Usage: ./mlp [letter-data|mnist] [--backend cpu|gpu|opengl-compute|opencl]" << std::endl;
       return -1;
     }
   } catch (const std::exception &exception) {

@@ -10,6 +10,6 @@ class GPUTrainingBackend : public TrainingBackend {
     ~GPUTrainingBackend() override = default;
 };
 
-std::shared_ptr<TrainingBackend> create_default_gpu_training_backend();
+std::shared_ptr<TrainingBackend> create_gpu_training_backend(const std::string &backend_name);
 
 #endif

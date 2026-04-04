@@ -12,6 +12,7 @@ class TrainingBackend {
     virtual std::string name() const = 0;
     virtual bool is_available() const = 0;
     virtual const std::string &last_error() const = 0;
+    virtual bool updates_weights_on_device() const = 0;
     virtual bool initialize(const FlatNetworkModel &model) = 0;
     virtual bool synchronize_model(const FlatNetworkModel &model) = 0;
     virtual bool forward_batch(const TrainingBatch &batch, BatchTrainingResult *result) = 0;
