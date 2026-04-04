@@ -3,8 +3,13 @@
 
 #include <vector>
 #include <string>
+#include <memory>
+
+#include "training_backend_types.hpp"
 
 enum ActivationUnits { Relu, Sigmoid, Tanh, Linear };
+
+class TrainingBackend;
 
 class MultiLayerPerceptron {
   private:
@@ -23,6 +28,8 @@ class MultiLayerPerceptron {
     std::vector<std::vector<std::vector<double> > > prev_velocities;
     std::vector<std::vector<std::vector<double> > > stored_activated_values;
     std::vector<std::vector<std::vector<double> > > zetas;
+    std::string execution_backend;
+    std::shared_ptr<TrainingBackend> training_backend;
     int *hidden_neurons;
     double get_random();
     void initialize(int inputs_size);
@@ -42,5 +49,9 @@ class MultiLayerPerceptron {
     std::vector<int> get_network_shape() const;
     std::vector<std::vector<double> > get_layer_activations() const;
     std::vector<std::vector<std::vector<double> > > get_weights() const;
+    FlatNetworkModel export_flat_model() const;
+    bool set_execution_backend(const std::string &backend_name, std::string *error_message = nullptr);
+    std::string get_execution_backend() const;
+    bool uses_gpu_backend() const;
 };
 #endif

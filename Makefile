@@ -8,10 +8,17 @@ INC := -I include
 LIB :=
 SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
-CORE_SOURCES := $(filter-out $(SRCDIR)/multi_layer_perceptron_main.cpp $(SRCDIR)/wasm_demo.cpp,$(SOURCES))
-NATIVE_SOURCES := $(filter-out $(SRCDIR)/wasm_demo.cpp,$(SOURCES))
+APP_SOURCES := $(filter-out $(SRCDIR)/wasm_demo.cpp,$(SOURCES))
+CORE_SOURCES := $(filter-out $(SRCDIR)/multi_layer_perceptron_main.cpp,$(APP_SOURCES))
+NATIVE_SOURCES := $(APP_SOURCES)
+GPU_OPENGL_LIBS ?= -lglfw -lGLEW -lGL
 WASM_EXPORTS := -s EXPORTED_FUNCTIONS='["_malloc","_free","_wasm_demo_reset","_wasm_demo_step","_wasm_demo_layer_count","_wasm_demo_layer_size","_wasm_demo_get_activation","_wasm_demo_get_weight","_wasm_demo_get_probability","_wasm_demo_get_label","_wasm_demo_get_prediction","_wasm_demo_get_loss","_wasm_demo_get_step_count","_wasm_demo_configure","_wasm_demo_clear_datasets","_wasm_demo_add_training_sample","_wasm_demo_add_validation_sample","_wasm_demo_select_validation_sample","_wasm_demo_get_training_sample_count","_wasm_demo_get_validation_sample_count","_wasm_demo_get_completed_epochs","_wasm_demo_get_training_progress","_wasm_demo_get_current_sample_index","_wasm_demo_get_current_validation_index","_wasm_demo_get_validation_pixel","_wasm_demo_get_validation_label","_wasm_demo_get_class_count"]'
 WASM_RUNTIME := -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAP8","HEAPU8","HEAP32","HEAPF64"]'
+
+REQUISITES:
+	sudo apt-get install libglew-dev
+	sudo apt-get -y install libglfw3
+	sudo apt-get -y install libglfw3-dev
 
 clean:
 	#rm ${PROGRAM}
@@ -21,6 +28,10 @@ build: clean
 	@mkdir -p $(BUILDDIR)
 	# @echo " $(CC) $(CFLAGS) $(INC) -c -o $@ $<"; $(CC) $(CFLAGS) $(INC) -c -o $@ $<
 	g++ -O3 -o $(PROGRAM) -std=c++17 $(INC) $(NATIVE_SOURCES)
+
+build-gpu: clean
+	@mkdir -p $(BUILDDIR)
+	g++ -O3 -DMLP_WITH_OPENGL_COMPUTE -o $(PROGRAM) -std=c++17 $(INC) $(NATIVE_SOURCES) $(GPU_OPENGL_LIBS)
 
 wasm-demo: clean
 	@mkdir -p $(DISTDIR)
@@ -42,17 +53,24 @@ run-letter-data: build
 	./mlp letter-data
 
 run-mnist-data: build
-	#wget http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz
-	#wget http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz
-	#wget http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz
-	#wget http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
-	#gunzip train-images-idx3-ubyte.gz train-labels-idx1-ubyte.gz t10k-images-idx3-ubyte.gz t10k-labels-idx1-ubyte.gz
 	./mlp mnist
 
+run-letter-data-gpu: build-gpu
+	./mlp letter-data --backend gpu
+
+run-mnist-data-gpu: build-gpu
+	./mlp mnist --backend gpu
+
+prepare-zaland-mnist-data:
+	mkdir -p data 
+	wget -P data http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz
+	wget -P data http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz
+	wget -P data http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-images-idx3-ubyte.gz
+	wget -P data http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz
+	cd data && gunzip train-images-idx3-ubyte.gz train-labels-idx1-ubyte.gz t10k-images-idx3-ubyte.gz t10k-labels-idx1-ubyte.gz
+
 run-zalando-mnist-data: build
-	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz
-	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz
-	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-images-idx3-ubyte.gz
-	#wget http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz
-	#gunzip train-images-idx3-ubyte.gz train-labels-idx1-ubyte.gz t10k-images-idx3-ubyte.gz t10k-labels-idx1-ubyte.gz
 	./mlp mnist
+
+serve-files:
+	python3 -m http.server

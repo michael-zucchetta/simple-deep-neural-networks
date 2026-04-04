@@ -10,7 +10,9 @@
 #include <future>
 #include <thread>
 #include <chrono>
+#include <stdexcept>
 #include "multi_layer_perceptron.hpp"
+#include "gpu_training_backend.hpp"
 
 static std::random_device r; // seed
 std::default_random_engine e{r()};
@@ -44,6 +46,35 @@ std::vector< std::vector<double> > init_weights(const int neurons_size, const in
     }
   }
   return tmp_vector;
+}
+
+TrainingBatch make_training_batch(
+  std::vector<std::vector<double> > &X,
+  std::vector<int> &indexes,
+  int index_from,
+  int index_to,
+  int output_size,
+  const std::vector<std::vector<double> > *targets = nullptr
+) {
+  TrainingBatch batch;
+  batch.batch_size = index_to - index_from;
+  batch.input_size = batch.batch_size > 0 ? X[indexes[index_from]].size() : 0;
+  batch.output_size = output_size;
+  batch.inputs.reserve(batch.batch_size * batch.input_size);
+  for (int z = index_from; z < index_to; ++z) {
+    const std::vector<double> &sample = X[indexes[z]];
+    batch.inputs.insert(batch.inputs.end(), sample.begin(), sample.end());
+  }
+  if (targets != nullptr) {
+    batch.targets.reserve(batch.batch_size * output_size);
+    for (int z = index_from; z < index_to; ++z) {
+      const std::vector<double> &target = (*targets)[indexes[z]];
+      batch.targets.insert(batch.targets.end(), target.begin(), target.end());
+    }
+  } else {
+    batch.targets.assign(batch.batch_size * output_size, 0.0);
+  }
+  return batch;
 }
 
 void MultiLayerPerceptron::initialize(int inputs_size) {
@@ -157,6 +188,7 @@ MultiLayerPerceptron::MultiLayerPerceptron(int _hidden_neurons[], int _threads_s
   this->layers = _layers;
   this->batch_size = _batch_size;
   this->activation_function = _activation_function;
+  this->execution_backend = "cpu";
   /*this->zetas = std::vector<std::vector<std::vector<double> > >(this->batch_size);
     this->stored_activated_values = std::vector<std::vector<std::vector<double> > >(this->batch_size);
     for (int i = 0; i < this->batch_size; ++i) {
@@ -167,31 +199,67 @@ MultiLayerPerceptron::MultiLayerPerceptron(int _hidden_neurons[], int _threads_s
 
 std::vector<std::vector<double> > MultiLayerPerceptron::forward_propagation(std::vector<std::vector<double> > &X, std::vector<int> &indexes, int index_from, int index_to, int thread_index) {
   std::vector<std::vector<double> > outputs_by_batch(X.size());
+  if (this->uses_gpu_backend()) {
+    if (!this->training_backend->synchronize_model(this->export_flat_model())) {
+      throw std::runtime_error(this->training_backend->last_error().empty() ? "GPU backend failed to synchronize model" : this->training_backend->last_error());
+    }
+
+    TrainingBatch batch = make_training_batch(X, indexes, index_from, index_to, this->size_outputs);
+    BatchTrainingResult result;
+    if (!this->training_backend->forward_batch(batch, &result)) {
+      throw std::runtime_error(this->training_backend->last_error().empty() ? "GPU backend failed during forward propagation" : this->training_backend->last_error());
+    }
+
+    const int batch_size = index_to - index_from;
+    if (static_cast<int>(result.layer_zetas.size()) != this->layers + 1 || static_cast<int>(result.layer_activations.size()) != this->layers + 1) {
+      throw std::runtime_error("GPU backend returned incomplete layer outputs");
+    }
+
+    for (int sample_index = 0; sample_index < batch_size; ++sample_index) {
+      const int contextual_index = sample_index + thread_index;
+      for (int layer_index = 0; layer_index < this->layers + 1; ++layer_index) {
+        const LayerBatchValues &zetas = result.layer_zetas[layer_index];
+        const LayerBatchValues &activations = result.layer_activations[layer_index];
+        this->zetas[contextual_index][layer_index] = std::vector<double>(
+          zetas.values.begin() + sample_index * zetas.value_size,
+          zetas.values.begin() + (sample_index + 1) * zetas.value_size
+        );
+        this->stored_activated_values[contextual_index][layer_index] = std::vector<double>(
+          activations.values.begin() + sample_index * activations.value_size,
+          activations.values.begin() + (sample_index + 1) * activations.value_size
+        );
+      }
+
+      outputs_by_batch[sample_index] = std::vector<double>(
+        result.outputs.begin() + sample_index * this->size_outputs,
+        result.outputs.begin() + (sample_index + 1) * this->size_outputs
+      );
+    }
+
+    return outputs_by_batch;
+  }
+
   for (int z = 0; z < index_to - index_from; ++z) {
     int z_contextual_idx = z + thread_index;
     for (int i = 0; i < this->weights.size(); ++i) {
       auto zeta = std::vector<double>(this->weights[i].size());
-      std::vector<double> activated_weights;
-      if (i != 0) {
-        activated_weights = activation(this->zetas[z_contextual_idx][i - 1], this->activation_function);
-        this->stored_activated_values[z_contextual_idx][i - 1] = activated_weights;
+      std::vector<double> layer_input;
+      if (i == 0) {
+        layer_input = X[indexes[index_from + z]];
+      } else {
+        layer_input = activation(this->zetas[z_contextual_idx][i - 1], this->activation_function);
+        this->stored_activated_values[z_contextual_idx][i - 1] = layer_input;
       }
+
       for (int y = 0; y < this->weights[i].size(); ++y) {
         double tmp_z = 0.0;
         for (int x = 0; x < this->weights[i][y].size(); ++x) {
-          if (i == 0) {
-            // std::cout<< ")))) " <<  X[indexes[index_from + z]][x] << std::endl;
-            tmp_z += this->weights[i][y][x] * X[indexes[index_from + z]][x]; 
-          } else { 
-            tmp_z += this->weights[i][y][x] * activated_weights[x];
-          }
+          tmp_z += this->weights[i][y][x] * layer_input[x];
         }
         zeta[y] = tmp_z;
       }
-      // std::cout<<" AAAA " << zeta[0] <<std::endl;
       this->zetas[z_contextual_idx][i] = zeta;
     }
-    // std::cout<<"BBB " << ( this->zetas[z_contextual_idx][this->layers][0] ) << std::endl;
     auto outputs = activation(this->zetas[z_contextual_idx][this->layers], "softmax");
     this->stored_activated_values[z_contextual_idx][this->layers] = outputs;
     outputs_by_batch[z] = outputs;
@@ -294,6 +362,53 @@ std::vector<double> MultiLayerPerceptron::transform_label(double label) {
 }
 
 double MultiLayerPerceptron::forward_and_propagate(std::vector<std::vector<double> > &training_set, std::vector<std::vector<double> > &new_labels, std::vector<int> &indexes, int index_from, int index_to, int thread_index) {
+  if (this->uses_gpu_backend()) {
+    if (!this->training_backend->synchronize_model(this->export_flat_model())) {
+      throw std::runtime_error(this->training_backend->last_error().empty() ? "GPU backend failed to synchronize model" : this->training_backend->last_error());
+    }
+
+    TrainingBatch batch = make_training_batch(training_set, indexes, index_from, index_to, this->size_outputs, &new_labels);
+    BatchTrainingResult result;
+    if (!this->training_backend->train_batch(batch, &result)) {
+      throw std::runtime_error(this->training_backend->last_error().empty() ? "GPU backend failed during training batch" : this->training_backend->last_error());
+    }
+    if (static_cast<int>(result.layer_zetas.size()) != this->layers + 1 || static_cast<int>(result.layer_activations.size()) != this->layers + 1) {
+      throw std::runtime_error("GPU backend returned incomplete layer activations");
+    }
+    if (static_cast<int>(result.layer_weight_gradients.size()) != this->layers + 1) {
+      throw std::runtime_error("GPU backend returned incomplete weight gradients");
+    }
+
+    const int batch_size = index_to - index_from;
+    for (int sample_index = 0; sample_index < batch_size; ++sample_index) {
+      const int contextual_index = sample_index + thread_index;
+      for (int layer_index = 0; layer_index < this->layers + 1; ++layer_index) {
+        const LayerBatchValues &zetas = result.layer_zetas[layer_index];
+        const LayerBatchValues &activations = result.layer_activations[layer_index];
+        this->zetas[contextual_index][layer_index] = std::vector<double>(
+          zetas.values.begin() + sample_index * zetas.value_size,
+          zetas.values.begin() + (sample_index + 1) * zetas.value_size
+        );
+        this->stored_activated_values[contextual_index][layer_index] = std::vector<double>(
+          activations.values.begin() + sample_index * activations.value_size,
+          activations.values.begin() + (sample_index + 1) * activations.value_size
+        );
+      }
+    }
+
+    for (int layer_index = 0; layer_index < this->layers + 1; ++layer_index) {
+      const FlatLayerWeights &gradient_layer = result.layer_weight_gradients[layer_index];
+      int gradient_offset = 0;
+      for (int neuron_index = 0; neuron_index < gradient_layer.output_size; ++neuron_index) {
+        for (int input_index = 0; input_index < gradient_layer.input_size; ++input_index) {
+          this->weight_derivatives[layer_index][neuron_index][input_index] += gradient_layer.values[gradient_offset++];
+        }
+      }
+    }
+
+    return result.loss;
+  }
+
   std::vector<std::vector<double> > outputs = this->forward_propagation(training_set, indexes, index_from, index_to, thread_index);
   double loss = this->back_propagation(training_set, new_labels, outputs, indexes, index_from, index_to, thread_index);
   return loss;
@@ -349,12 +464,14 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
   int batch_count = 0;
   for (int i = 0; i < epochs; ++i) {
     auto begin = Clock::now();
+    auto last_progress_update = begin;
+    std::cout << "Starting epoch " << (i + 1) << "/" << epochs << std::endl;
     double loss = 0.0;
     // shuffle indexes
     std::shuffle(indexes.begin(), indexes.end(), r);
     int size = training_set.size() / this->batch_size;
+    const int progress_interval = std::max(1, size / 20);
     for (int ind = 0; ind < size; ++ind) {
-      // std::cout<<" CICCIO DOVE CORRI"<<std::endl;
       int actual_batch_size = 0;
       if (training_set.size() / ((ind + 1) * this->batch_size) == 0) {
         actual_batch_size = training_set.size() % ((ind + 1) * this->batch_size); 
@@ -367,24 +484,41 @@ void MultiLayerPerceptron::train(std::vector< std::vector<double> > training_set
       // std::vector<std::vector<double> > outputs = this->forward_propagation(training_set, indexes, index_from, index_to);
       // loss += this->back_propagation(training_set, new_labels, outputs, indexes, index_from, index_to);
       // auto forward_propagate_thread = std::async(&MultiLayerPerceptron::func, this, std::ref(indexes));//, training_set, new_labels, indexes, index_from, index_to);
-      int block_size = this->batch_size / this->threads_size;
-      std::vector< std::future<double> > futures(this->threads_size);
-      for (int thread_idx = 0; thread_idx < this->threads_size; ++thread_idx) {
-        int block_index_from = index_from + thread_idx * block_size;
-        int block_index_to = index_from + (thread_idx + 1) * block_size;
-        // std::cout<<"BLOCK IN " << block_index_from<<" " << block_index_to<<" " << block_size<<std::endl;
-        futures[thread_idx] = std::async(&MultiLayerPerceptron::forward_and_propagate, this, std::ref(training_set), std::ref(new_labels), std::ref(indexes), block_index_from, block_index_to, thread_idx * block_size);
-      }
-      // return;
-      for (auto &thread : futures) {
-        loss += thread.get();
+      if (this->uses_gpu_backend()) {
+        loss += this->forward_and_propagate(training_set, new_labels, indexes, index_from, index_to, 0);
+      } else {
+        int block_size = this->batch_size / this->threads_size;
+        std::vector< std::future<double> > futures(this->threads_size);
+        for (int thread_idx = 0; thread_idx < this->threads_size; ++thread_idx) {
+          int block_index_from = index_from + thread_idx * block_size;
+          int block_index_to = index_from + (thread_idx + 1) * block_size;
+          futures[thread_idx] = std::async(&MultiLayerPerceptron::forward_and_propagate, this, std::ref(training_set), std::ref(new_labels), std::ref(indexes), block_index_from, block_index_to, thread_idx * block_size);
+        }
+        for (auto &thread : futures) {
+          loss += thread.get();
+        }
       }
       // auto forward_propagate_thread = std::async(&MultiLayerPerceptron::forward_propagation, this, training_set, indexes, index_from, index_to);
       // auto forward_propagate_thread = std::async(&func);
       // loss += forward_propagate_thread.get();
       update_weights(actual_batch_size);
+      if ((ind + 1) % progress_interval == 0 || ind + 1 == size) {
+        const auto progress_now = Clock::now();
+        const double seconds_since_last_update =
+          std::chrono::duration_cast<std::chrono::milliseconds>(progress_now - last_progress_update).count() / 1000.0;
+        const double epoch_elapsed_seconds =
+          std::chrono::duration_cast<std::chrono::milliseconds>(progress_now - begin).count() / 1000.0;
+        std::cout
+          << "Epoch " << (i + 1) << "/" << epochs
+          << " progress: " << (ind + 1) << "/" << size
+          << " batches"
+          << " | +" << seconds_since_last_update << "s"
+          << " | elapsed " << epoch_elapsed_seconds << "s"
+          << std::endl;
+        last_progress_update = progress_now;
+      }
     }
-    std::cout<<"Epoch n. "<<(i + 1)<<", with error "<<loss/(double) training_set.size()<<std::endl;
+    std::cout<<"Epoch "<<(i + 1)<<"/"<<epochs<<", with error "<<loss/(double) training_set.size()<<std::endl;
     auto end = Clock::now();
     auto exec_time = end - begin;
     std::cout<<"Time for single epoch is "<< std::chrono::duration_cast<std::chrono::milliseconds>(exec_time).count()/(double) 1000<<std::endl;
@@ -454,4 +588,66 @@ std::vector<std::vector<double> > MultiLayerPerceptron::get_layer_activations() 
 
 std::vector<std::vector<std::vector<double> > > MultiLayerPerceptron::get_weights() const {
   return this->weights;
+}
+
+FlatNetworkModel MultiLayerPerceptron::export_flat_model() const {
+  FlatNetworkModel model;
+  model.shape = get_network_shape();
+  model.activation_function = this->activation_function;
+  model.output_size = this->size_outputs;
+
+  model.layers.reserve(this->weights.size());
+  for (const auto &layer : this->weights) {
+    FlatLayerWeights flat_layer;
+    flat_layer.output_size = layer.size();
+    flat_layer.input_size = flat_layer.output_size == 0 ? 0 : layer[0].size();
+    flat_layer.values.reserve(flat_layer.input_size * flat_layer.output_size);
+    for (const auto &neuron_weights : layer) {
+      flat_layer.values.insert(flat_layer.values.end(), neuron_weights.begin(), neuron_weights.end());
+    }
+    model.layers.push_back(std::move(flat_layer));
+  }
+
+  return model;
+}
+
+bool MultiLayerPerceptron::set_execution_backend(const std::string &backend_name, std::string *error_message) {
+  if (backend_name == "cpu") {
+    this->execution_backend = "cpu";
+    this->training_backend.reset();
+    return true;
+  }
+
+  if (backend_name != "gpu") {
+    if (error_message != nullptr) {
+      *error_message = "Unknown backend: " + backend_name;
+    }
+    return false;
+  }
+
+  auto backend = create_default_gpu_training_backend();
+  if (!backend->is_available()) {
+    if (error_message != nullptr) {
+      *error_message = backend->last_error().empty() ? "GPU backend is unavailable" : backend->last_error();
+    }
+    return false;
+  }
+  if (!this->weights.empty() && !backend->initialize(this->export_flat_model())) {
+    if (error_message != nullptr) {
+      *error_message = backend->last_error().empty() ? "Failed to initialize GPU backend model state" : backend->last_error();
+    }
+    return false;
+  }
+
+  this->training_backend = backend;
+  this->execution_backend = backend->name();
+  return true;
+}
+
+std::string MultiLayerPerceptron::get_execution_backend() const {
+  return this->execution_backend;
+}
+
+bool MultiLayerPerceptron::uses_gpu_backend() const {
+  return this->execution_backend == "gpu" && this->training_backend != nullptr;
 }
