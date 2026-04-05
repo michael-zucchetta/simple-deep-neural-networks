@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dataset Activation Explorer</title>
+    <style>
+      :root {
+        --bg: #f6f1e7;
+        --panel: rgba(255, 252, 246, 0.86);
+        --ink: #171a1f;
+        --muted: #596170;
+        --accent: #b55d2e;
+        --accent-soft: #ebc7a2;
+        --line-pos: rgba(181, 93, 46, 0.34);
+        --line-neg: rgba(32, 92, 138, 0.3);
+        --border: rgba(23, 26, 31, 0.09);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(235, 199, 162, 0.78), transparent 28rem),
+          radial-gradient(circle at right, rgba(32, 92, 138, 0.14), transparent 22rem),
+          linear-gradient(135deg, #f8f4ec, #f0e7d9 55%, #f6f0e7);
+      }
+
+      main {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 2.5rem;
+      }
+
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.1rem, 5vw, 4.1rem);
+        line-height: 0.92;
+        letter-spacing: -0.07em;
+        text-transform: uppercase;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .hero-link {
+        color: var(--ink);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(23, 26, 31, 0.2);
+        padding-bottom: 0.15rem;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.8fr) minmax(21rem, 1fr);
+        gap: 1rem;
+      }
+
+      .stack {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        border-radius: 1.25rem;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 1rem 2.5rem rgba(16, 14, 9, 0.08);
+      }
+
+      .canvas-panel {
+        padding: 0.8rem;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 1rem;
+      }
+
+      #network {
+        background:
+          linear-gradient(rgba(23, 26, 31, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(23, 26, 31, 0.03) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 250, 244, 0.92));
+        background-size: 1.8rem 1.8rem, 1.8rem 1.8rem, auto;
+      }
+
+      #validationImage {
+        image-rendering: pixelated;
+        background: linear-gradient(180deg, #fff, #f1eadf);
+      }
+
+      .sidebar {
+        padding: 1rem;
+        display: grid;
+        gap: 0.85rem;
+        align-content: start;
+      }
+
+      .section-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      .controls,
+      .stats,
+      .layers {
+        display: grid;
+        gap: 0.7rem;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+      }
+
+      .field,
+      .stat,
+      .layer-row,
+      .upload-box,
+      .prediction-list {
+        padding: 0.8rem 0.9rem;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid var(--border);
+      }
+
+      .stat-value {
+        font-size: 1.35rem;
+        letter-spacing: -0.04em;
+      }
+
+      label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 0.35rem;
+      }
+
+      input,
+      select {
+        width: 100%;
+        border: 1px solid rgba(23, 26, 31, 0.12);
+        border-radius: 0.75rem;
+        padding: 0.68rem 0.75rem;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      input[type="file"] {
+        padding: 0.5rem 0;
+        background: transparent;
+        border: 0;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.78rem 1.15rem;
+        font: inherit;
+        cursor: pointer;
+        background: var(--ink);
+        color: white;
+      }
+
+      button.secondary {
+        background: rgba(23, 26, 31, 0.08);
+        color: var(--ink);
+      }
+
+      button.ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid rgba(23, 26, 31, 0.12);
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+
+      .progress {
+        height: 0.8rem;
+        border-radius: 999px;
+        background: rgba(23, 26, 31, 0.08);
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #d88d5a, #b55d2e);
+        transition: width 120ms linear;
+      }
+
+      .status {
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      .mini-layout {
+        display: grid;
+        grid-template-columns: 8.4rem minmax(0, 1fr);
+        gap: 0.8rem;
+        align-items: start;
+      }
+
+      .prediction-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        font-size: 0.92rem;
+      }
+
+      .prediction-item strong {
+        font-weight: 600;
+      }
+
+      .top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+      }
+
+      .hint {
+        font-size: 0.86rem;
+        color: var(--muted);
+      }
+
+      @media (max-width: 1060px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .hero {
+          display: grid;
+          justify-content: start;
+        }
+
+        .grid-2,
+        .mini-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div>
+          <h1>Dataset Activation Explorer</h1>
+          <p>
+            Upload browser-downloaded MNIST or Zalando Fashion-MNIST IDX files, change the network depth, watch activations update during training, and inspect validation images with live predictions.
+          </p>
+        </div>
+        <a class="hero-link" href="./index.html">Open XOR demo</a>
+      </section>
+
+      <section class="layout">
+        <div class="stack">
+          <div class="panel canvas-panel">
+            <canvas id="network" width="980" height="680"></canvas>
+          </div>
+
+          <div class="panel sidebar">
+            <div class="top-bar">
+              <div>
+                <div class="section-title">Validation Sample</div>
+                <p class="hint">Move through the validation set and compare the network output against the true label.</p>
+              </div>
+              <button id="refreshValidation" class="secondary" type="button">Refresh</button>
+            </div>
+
+            <div class="mini-layout">
+              <div class="field">
+                <canvas id="validationImage" width="280" height="280"></canvas>
+              </div>
+
+              <div class="stack">
+                <div class="field">
+                  <label for="validationIndex">Validation index</label>
+                  <input id="validationIndex" type="range" min="0" max="0" value="0">
+                  <div class="hint" id="validationIndexLabel">Sample 0 / 0</div>
+                </div>
+
+                <div class="grid-2">
+                  <div class="stat">
+                    <div class="section-title">Expected</div>
+                    <div class="stat-value" id="validationLabel">0</div>
+                  </div>
+                  <div class="stat">
+                    <div class="section-title">Predicted</div>
+                    <div class="stat-value" id="validationPrediction">0</div>
+                  </div>
+                </div>
+
+                <div class="prediction-list" id="predictionList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="panel sidebar">
+          <div class="controls">
+            <div class="section-title">Dataset</div>
+            <div class="field">
+              <label for="datasetType">Label set</label>
+              <select id="datasetType">
+                <option value="mnist">MNIST digits</option>
+                <option value="fashion">Zalando Fashion-MNIST</option>
+              </select>
+            </div>
+
+            <div class="upload-box">
+              <label for="trainImages">Training images IDX file</label>
+              <input id="trainImages" type="file" accept=".idx,.ubyte,.gz,.idx3-ubyte">
+              <label for="trainLabels">Training labels IDX file</label>
+              <input id="trainLabels" type="file" accept=".idx,.ubyte,.gz,.idx1-ubyte">
+              <label for="validationImages">Validation images IDX file</label>
+              <input id="validationImages" type="file" accept=".idx,.ubyte,.gz,.idx3-ubyte">
+              <label for="validationLabels">Validation labels IDX file</label>
+              <input id="validationLabels" type="file" accept=".idx,.ubyte,.gz,.idx1-ubyte">
+              <div class="hint">Use the unzipped IDX files or the original `.gz` downloads.</div>
+            </div>
+          </div>
+
+          <div class="layers">
+            <div class="top-bar">
+              <div class="section-title">Hidden Layers</div>
+              <button id="addLayer" class="ghost" type="button">Add layer</button>
+            </div>
+            <div id="layerList"></div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label for="stepsPerFrame">Training steps / frame</label>
+              <input id="stepsPerFrame" type="number" min="1" max="300" value="20">
+            </div>
+            <div class="field">
+              <label for="maxVisualNeurons">Visible neurons / layer</label>
+              <input id="maxVisualNeurons" type="number" min="4" max="24" value="12">
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button id="loadDataset" type="button">Load Dataset</button>
+            <button id="downloadDataset" class="secondary" type="button">Download Dataset</button>
+            <button id="toggleTraining" class="secondary" type="button">Start Training</button>
+            <button id="resetTraining" class="secondary" type="button">Reset</button>
+          </div>
+
+          <div class="field">
+            <div class="section-title">Training Progress</div>
+            <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+            <div class="status" id="statusText">Load the four IDX files to begin.</div>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="section-title">Epoch</div>
+              <div class="stat-value" id="epochValue">0</div>
+            </div>
+            <div class="stat">
+              <div class="section-title">Step</div>
+              <div class="stat-value" id="stepValue">0</div>
+            </div>
+            <div class="stat">
+              <div class="section-title">Loss</div>
+              <div class="stat-value" id="lossValue">0.0000</div>
+            </div>
+            <div class="stat">
+              <div class="section-title">Current training sample</div>
+              <div class="stat-value" id="trainingSampleValue">0</div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module">
+      import createModule from "./mlp_demo.js";
+
+      const FASHION_LABELS = [
+        "T-shirt/top",
+        "Trouser",
+        "Pullover",
+        "Dress",
+        "Coat",
+        "Sandal",
+        "Shirt",
+        "Sneaker",
+        "Bag",
+        "Ankle boot"
+      ];
+
+      const DIGIT_LABELS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+      const networkCanvas = document.getElementById("network");
+      const networkCtx = networkCanvas.getContext("2d");
+      const validationCanvas = document.getElementById("validationImage");
+      const validationCtx = validationCanvas.getContext("2d");
+
+      const datasetTypeEl = document.getElementById("datasetType");
+      const trainImagesEl = document.getElementById("trainImages");
+      const trainLabelsEl = document.getElementById("trainLabels");
+      const validationImagesEl = document.getElementById("validationImages");
+      const validationLabelsEl = document.getElementById("validationLabels");
+      const loadDatasetButton = document.getElementById("loadDataset");
+      const downloadDatasetButton = document.getElementById("downloadDataset");
+      const toggleTrainingButton = document.getElementById("toggleTraining");
+      const resetTrainingButton = document.getElementById("resetTraining");
+      const addLayerButton = document.getElementById("addLayer");
+      const refreshValidationButton = document.getElementById("refreshValidation");
+      const layerListEl = document.getElementById("layerList");
+      const stepsPerFrameEl = document.getElementById("stepsPerFrame");
+      const maxVisualNeuronsEl = document.getElementById("maxVisualNeurons");
+      const progressBarEl = document.getElementById("progressBar");
+      const statusTextEl = document.getElementById("statusText");
+      const epochValueEl = document.getElementById("epochValue");
+      const stepValueEl = document.getElementById("stepValue");
+      const lossValueEl = document.getElementById("lossValue");
+      const trainingSampleValueEl = document.getElementById("trainingSampleValue");
+      const validationIndexEl = document.getElementById("validationIndex");
+      const validationIndexLabelEl = document.getElementById("validationIndexLabel");
+      const validationLabelEl = document.getElementById("validationLabel");
+      const validationPredictionEl = document.getElementById("validationPrediction");
+      const predictionListEl = document.getElementById("predictionList");
+
+      let Module = null;
+      let api = null;
+      let isTraining = false;
+      let lastAnimationFrame = 0;
+      let validationCount = 0;
+      let uploadedInputSize = 784;
+      let uploadedClassCount = 10;
+
+      const labelNames = () => datasetTypeEl.value === "fashion" ? FASHION_LABELS : DIGIT_LABELS;
+
+      const defaultLayerValues = [64, 32];
+      const DATASET_SOURCES = {
+        mnist: {
+          trainImages: [
+            "https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz",
+            "https://azureopendatastorage.blob.core.windows.net/mnist/train-images-idx3-ubyte.gz"
+          ],
+          trainLabels: [
+            "https://ossci-datasets.s3.amazonaws.com/mnist/train-labels-idx1-ubyte.gz",
+            "https://azureopendatastorage.blob.core.windows.net/mnist/train-labels-idx1-ubyte.gz"
+          ],
+          validationImages: [
+            "https://ossci-datasets.s3.amazonaws.com/mnist/t10k-images-idx3-ubyte.gz",
+            "https://azureopendatastorage.blob.core.windows.net/mnist/t10k-images-idx3-ubyte.gz"
+          ],
+          validationLabels: [
+            "https://ossci-datasets.s3.amazonaws.com/mnist/t10k-labels-idx1-ubyte.gz",
+            "https://azureopendatastorage.blob.core.windows.net/mnist/t10k-labels-idx1-ubyte.gz"
+          ]
+        },
+        fashion: {
+          trainImages: [
+            "https://cdn.jsdelivr.net/gh/zalandoresearch/fashion-mnist@master/data/fashion/train-images-idx3-ubyte.gz",
+            "https://raw.githubusercontent.com/zalandoresearch/fashion-mnist/master/data/fashion/train-images-idx3-ubyte.gz"
+          ],
+          trainLabels: [
+            "https://cdn.jsdelivr.net/gh/zalandoresearch/fashion-mnist@master/data/fashion/train-labels-idx1-ubyte.gz",
+            "https://raw.githubusercontent.com/zalandoresearch/fashion-mnist/master/data/fashion/train-labels-idx1-ubyte.gz"
+          ],
+          validationImages: [
+            "https://cdn.jsdelivr.net/gh/zalandoresearch/fashion-mnist@master/data/fashion/t10k-images-idx3-ubyte.gz",
+            "https://raw.githubusercontent.com/zalandoresearch/fashion-mnist/master/data/fashion/t10k-images-idx3-ubyte.gz"
+          ],
+          validationLabels: [
+            "https://cdn.jsdelivr.net/gh/zalandoresearch/fashion-mnist@master/data/fashion/t10k-labels-idx1-ubyte.gz",
+            "https://raw.githubusercontent.com/zalandoresearch/fashion-mnist/master/data/fashion/t10k-labels-idx1-ubyte.gz"
+          ]
+        }
+      };
+
+      const createLayerRow = (value = 32) => {
+        const row = document.createElement("div");
+        row.className = "layer-row";
+
+        const label = document.createElement("label");
+        label.textContent = "Neurons";
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "1";
+        input.max = "256";
+        input.value = String(value);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "ghost";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => {
+          row.remove();
+        });
+
+        row.append(label, input, remove);
+        return row;
+      };
+
+      const ensureLayerRows = () => {
+        if (layerListEl.children.length === 0) {
+          defaultLayerValues.forEach((value) => layerListEl.appendChild(createLayerRow(value)));
+        }
+      };
+
+      ensureLayerRows();
+
+      addLayerButton.addEventListener("click", () => {
+        layerListEl.appendChild(createLayerRow(24));
+      });
+
+      const readLayerSizes = () =>
+        Array.from(layerListEl.querySelectorAll("input"))
+          .map((input) => Number.parseInt(input.value, 10))
+          .filter((value) => Number.isFinite(value) && value > 0);
+
+      const setStatus = (text) => {
+        statusTextEl.textContent = text;
+      };
+
+      const setProgress = (ratio) => {
+        const clamped = Math.max(0, Math.min(1, ratio));
+        progressBarEl.style.width = `${(clamped * 100).toFixed(2)}%`;
+      };
+
+      const getVisibleLimit = () => {
+        const value = Number.parseInt(maxVisualNeuronsEl.value, 10);
+        return Number.isFinite(value) ? Math.max(4, Math.min(24, value)) : 12;
+      };
+
+      const edgeColor = (weight) => weight >= 0 ? "rgba(181, 93, 46, 0.34)" : "rgba(32, 92, 138, 0.30)";
+
+      const neuronColor = (value) => {
+        const normalized = 1 / (1 + Math.exp(-value * 1.6));
+        const a = [239, 229, 211];
+        const b = [181, 93, 46];
+        return `rgb(${a.map((start, i) => Math.round(start + (b[i] - start) * normalized)).join(",")})`;
+      };
+
+      const drawNetwork = (state) => {
+        const width = networkCanvas.width;
+        const height = networkCanvas.height;
+        const visibleLayers = state.layers.map((layer, index) => {
+          if (index === 0) {
+            return layer.slice(0, Math.min(layer.length, 16));
+          }
+          const limit = getVisibleLimit();
+          if (layer.length <= limit) {
+            return layer;
+          }
+
+          const indexed = layer.map((value, originalIndex) => ({
+            value,
+            originalIndex,
+            strength: Math.abs(value)
+          }));
+          indexed.sort((a, b) => b.strength - a.strength);
+          return indexed.slice(0, limit).sort((a, b) => a.originalIndex - b.originalIndex);
+        });
+
+        networkCtx.clearRect(0, 0, width, height);
+
+        networkCtx.fillStyle = "#171a1f";
+        networkCtx.font = "600 16px 'Avenir Next', sans-serif";
+        networkCtx.fillText("Input image pixels", 34, 38);
+        networkCtx.fillText("Hidden activations", width * 0.45, 38);
+        networkCtx.fillText("Output probabilities", width - 220, 38);
+
+        const inputStartX = 40;
+        const inputStartY = 60;
+        const pixelSize = 11;
+        const sourceInput = state.inputImage.length === 784 ? state.inputImage : Array.from({ length: 784 }, (_, index) => state.layers[0]?.[index] ?? 0);
+
+        for (let row = 0; row < 28; row += 1) {
+          for (let col = 0; col < 28; col += 1) {
+            const value = sourceInput[row * 28 + col] ?? 0;
+            const shade = Math.round((1 - Math.max(0, Math.min(1, value))) * 255);
+            networkCtx.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
+            networkCtx.fillRect(inputStartX + col * pixelSize, inputStartY + row * pixelSize, pixelSize - 1, pixelSize - 1);
+          }
+        }
+
+        const otherLayers = visibleLayers.slice(1);
+        const layerGap = (width - 420) / Math.max(1, otherLayers.length);
+        const positions = [];
+
+        otherLayers.forEach((layer, layerOffset) => {
+          const x = 410 + layerGap * layerOffset;
+          const entries = Array.isArray(layer) ? layer : [];
+          const gapY = (height - 120) / (entries.length + 1);
+          positions[layerOffset] = entries.map((entry, neuronIndex) => ({
+            x,
+            y: 70 + gapY * (neuronIndex + 1),
+            value: typeof entry === "number" ? entry : entry.value,
+            originalIndex: typeof entry === "number" ? neuronIndex : entry.originalIndex
+          }));
+        });
+
+        for (let layerOffset = 1; layerOffset < positions.length; layerOffset += 1) {
+          const currentLayerIndex = layerOffset + 1;
+          positions[layerOffset].forEach((currentNode) => {
+            positions[layerOffset - 1].forEach((previousNode) => {
+              const weight = api.weight(currentLayerIndex, currentNode.originalIndex, previousNode.originalIndex);
+              networkCtx.beginPath();
+              networkCtx.moveTo(previousNode.x, previousNode.y);
+              networkCtx.lineTo(currentNode.x, currentNode.y);
+              networkCtx.strokeStyle = edgeColor(weight);
+              networkCtx.lineWidth = 1 + Math.min(5, Math.abs(weight) * 10);
+              networkCtx.stroke();
+            });
+          });
+        }
+
+        positions.forEach((layerNodes, layerOffset) => {
+          const isOutputLayer = layerOffset === positions.length - 1;
+          layerNodes.forEach((node, index) => {
+            const radius = isOutputLayer ? 24 : 18;
+            networkCtx.beginPath();
+            networkCtx.arc(node.x, node.y, radius + 8, 0, Math.PI * 2);
+            networkCtx.fillStyle = "rgba(181, 93, 46, 0.08)";
+            networkCtx.fill();
+
+            networkCtx.beginPath();
+            networkCtx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+            networkCtx.fillStyle = neuronColor(node.value);
+            networkCtx.fill();
+
+            networkCtx.strokeStyle = "rgba(23, 26, 31, 0.16)";
+            networkCtx.lineWidth = 1.25;
+            networkCtx.stroke();
+
+            networkCtx.fillStyle = "#171a1f";
+            networkCtx.font = isOutputLayer ? "600 13px 'Avenir Next', sans-serif" : "600 12px 'Avenir Next', sans-serif";
+            networkCtx.textAlign = "center";
+            const label = isOutputLayer
+              ? `${labelNames()[node.originalIndex] ?? node.originalIndex}`
+              : `${node.value.toFixed(2)}`;
+            networkCtx.fillText(label, node.x, node.y + 4);
+
+            if (isOutputLayer) {
+              networkCtx.fillStyle = "#596170";
+              networkCtx.font = "500 11px 'Avenir Next', sans-serif";
+              networkCtx.fillText(`${(state.probabilities[node.originalIndex] * 100).toFixed(1)}%`, node.x, node.y + 20);
+            }
+          });
+        });
+      };
+
+      const drawValidationImage = () => {
+        const imageData = validationCtx.createImageData(28, 28);
+        for (let pixel = 0; pixel < 784; pixel += 1) {
+          const value = Math.max(0, Math.min(1, api.validationPixel(pixel)));
+          const shade = Math.round((1 - value) * 255);
+          const base = pixel * 4;
+          imageData.data[base] = shade;
+          imageData.data[base + 1] = shade;
+          imageData.data[base + 2] = shade;
+          imageData.data[base + 3] = 255;
+        }
+
+        const offscreen = document.createElement("canvas");
+        offscreen.width = 28;
+        offscreen.height = 28;
+        offscreen.getContext("2d").putImageData(imageData, 0, 0);
+
+        validationCtx.clearRect(0, 0, validationCanvas.width, validationCanvas.height);
+        validationCtx.imageSmoothingEnabled = false;
+        validationCtx.drawImage(offscreen, 0, 0, validationCanvas.width, validationCanvas.height);
+      };
+
+      const updateValidation = () => {
+        validationCount = api.validationSampleCount();
+        if (validationCount === 0) {
+          validationIndexEl.max = "0";
+          validationIndexEl.value = "0";
+          validationIndexLabelEl.textContent = "Sample 0 / 0";
+          validationLabelEl.textContent = "-";
+          validationPredictionEl.textContent = "-";
+          predictionListEl.textContent = "Validation data not loaded yet.";
+          validationCtx.clearRect(0, 0, validationCanvas.width, validationCanvas.height);
+          return;
+        }
+
+        const index = Math.min(Number.parseInt(validationIndexEl.value, 10) || 0, validationCount - 1);
+        api.selectValidation(index);
+        validationIndexEl.max = String(validationCount - 1);
+        validationIndexEl.value = String(index);
+        validationIndexLabelEl.textContent = `Sample ${index + 1} / ${validationCount}`;
+        validationLabelEl.textContent = labelNames()[Math.round(api.validationLabel())] ?? String(Math.round(api.validationLabel()));
+        validationPredictionEl.textContent = labelNames()[Math.round(api.prediction())] ?? String(Math.round(api.prediction()));
+        drawValidationImage();
+
+        const rows = [];
+        for (let classIndex = 0; classIndex < api.classCount(); classIndex += 1) {
+          rows.push({
+            name: labelNames()[classIndex] ?? String(classIndex),
+            probability: api.probability(classIndex)
+          });
+        }
+        rows.sort((a, b) => b.probability - a.probability);
+        predictionListEl.innerHTML = rows
+          .slice(0, 5)
+          .map((row) => `<div class="prediction-item"><span>${row.name}</span><strong>${(row.probability * 100).toFixed(1)}%</strong></div>`)
+          .join("");
+      };
+
+      const getState = () => {
+        const layerCount = api.layerCount();
+        const layers = [];
+        const weights = [];
+
+        for (let layerIndex = 0; layerIndex < layerCount; layerIndex += 1) {
+          const layerSize = api.layerSize(layerIndex);
+          const neurons = [];
+          for (let neuronIndex = 0; neuronIndex < layerSize; neuronIndex += 1) {
+            neurons.push(api.activation(layerIndex, neuronIndex));
+          }
+          layers.push(neurons);
+        }
+
+        for (let layerIndex = 1; layerIndex < layerCount; layerIndex += 1) {
+          const layerWeights = [];
+          for (let neuronIndex = 0; neuronIndex < layers[layerIndex].length; neuronIndex += 1) {
+            const neuronWeights = [];
+            for (let inputIndex = 0; inputIndex < layers[layerIndex - 1].length; inputIndex += 1) {
+              neuronWeights.push(api.weight(layerIndex, neuronIndex, inputIndex));
+            }
+            layerWeights.push(neuronWeights);
+          }
+          weights.push(layerWeights);
+        }
+
+        const probabilities = Array.from({ length: api.classCount() }, (_, index) => api.probability(index));
+        return {
+          layers,
+          weights,
+          probabilities,
+          step: api.stepCount(),
+          loss: api.loss(),
+          epoch: api.completedEpochs(),
+          trainingProgress: api.trainingProgress(),
+          trainingSampleIndex: api.currentSampleIndex(),
+          inputImage: Array.from({ length: uploadedInputSize }, (_, index) => api.activation(0, index))
+        };
+      };
+
+      const updateHud = (state) => {
+        epochValueEl.textContent = String(state.epoch);
+        stepValueEl.textContent = String(state.step);
+        lossValueEl.textContent = state.loss.toFixed(4);
+        trainingSampleValueEl.textContent = String(state.trainingSampleIndex);
+        progressBarEl.style.width = `${(state.trainingProgress * 100).toFixed(2)}%`;
+      };
+
+      const render = () => {
+        const state = getState();
+        drawNetwork(state);
+        updateHud(state);
+        updateValidation();
+      };
+
+      const maybeGunzip = async (resource) => {
+        const buffer = await resource.arrayBuffer();
+        if (!resource.name.endsWith(".gz")) {
+          return buffer;
+        }
+
+        if (typeof DecompressionStream === "undefined") {
+          throw new Error("This browser cannot decompress .gz files. Use uncompressed IDX files instead.");
+        }
+
+        const stream = new Response(buffer).body.pipeThrough(new DecompressionStream("gzip"));
+        return await new Response(stream).arrayBuffer();
+      };
+
+      const parseImages = async (resource) => {
+        const buffer = await maybeGunzip(resource);
+        const view = new DataView(buffer);
+        const magic = view.getUint32(0, false);
+        if (magic !== 2051) {
+          throw new Error(`${resource.name} is not a valid IDX image file.`);
+        }
+
+        const count = view.getUint32(4, false);
+        const rows = view.getUint32(8, false);
+        const cols = view.getUint32(12, false);
+        const imageSize = rows * cols;
+        const bytes = new Uint8Array(buffer, 16);
+        const images = new Array(count);
+        for (let imageIndex = 0; imageIndex < count; imageIndex += 1) {
+          const start = imageIndex * imageSize;
+          const pixels = new Float64Array(imageSize);
+          for (let pixel = 0; pixel < imageSize; pixel += 1) {
+            pixels[pixel] = bytes[start + pixel] / 255;
+          }
+          images[imageIndex] = pixels;
+        }
+        return { images, rows, cols };
+      };
+
+      const parseLabels = async (resource) => {
+        const buffer = await maybeGunzip(resource);
+        const view = new DataView(buffer);
+        const magic = view.getUint32(0, false);
+        if (magic !== 2049) {
+          throw new Error(`${resource.name} is not a valid IDX label file.`);
+        }
+
+        const count = view.getUint32(4, false);
+        const bytes = new Uint8Array(buffer, 8);
+        return Array.from(bytes.slice(0, count));
+      };
+
+      const withTypedArray = (typedArray, heapName, callback) => {
+        const bytes = typedArray.length * typedArray.BYTES_PER_ELEMENT;
+        const ptr = Module._malloc(bytes);
+        try {
+          Module[heapName].set(typedArray, ptr / typedArray.BYTES_PER_ELEMENT);
+          callback(ptr);
+        } finally {
+          Module._free(ptr);
+        }
+      };
+
+      const configureWasm = () => {
+        const layerSizes = readLayerSizes();
+        withTypedArray(Int32Array.from(layerSizes), "HEAP32", (layersPtr) => {
+          api.configure(layersPtr, layerSizes.length, uploadedInputSize, uploadedClassCount);
+        });
+      };
+
+      const fetchResourceFromUrl = async (url, label, fileIndex, fileCount) => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Download failed for ${label}.`);
+        }
+
+        const totalBytes = Number.parseInt(response.headers.get("content-length") || "0", 10);
+        if (!response.body || !response.body.getReader) {
+          const buffer = await response.arrayBuffer();
+          setStatus(`Downloaded ${label}`);
+          setProgress(fileIndex / fileCount);
+          return {
+            name: url.split("/").pop() || label,
+            arrayBuffer: async () => buffer
+          };
+        }
+
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedBytes = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          chunks.push(value);
+          receivedBytes += value.byteLength;
+          const fileProgress = totalBytes > 0 ? receivedBytes / totalBytes : 0;
+          setStatus(`Downloading ${label}: ${totalBytes > 0 ? `${Math.round(fileProgress * 100)}%` : `${Math.round(receivedBytes / 1024)} KB`}`);
+          setProgress((fileIndex + fileProgress) / fileCount);
+        }
+
+        const merged = new Uint8Array(receivedBytes);
+        let offset = 0;
+        for (const chunk of chunks) {
+          merged.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+
+        setProgress((fileIndex + 1) / fileCount);
+        return {
+          name: url.split("/").pop() || label,
+          arrayBuffer: async () => merged.buffer
+        };
+      };
+
+      const fetchResource = async (urls, label, fileIndex, fileCount) => {
+        const candidates = Array.isArray(urls) ? urls : [urls];
+        let lastError = null;
+
+        for (let index = 0; index < candidates.length; index += 1) {
+          const url = candidates[index];
+          try {
+            setStatus(`Connecting to ${label} source ${index + 1} / ${candidates.length}...`);
+            return await fetchResourceFromUrl(url, label, fileIndex, fileCount);
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        throw lastError instanceof Error ? lastError : new Error(`All download sources failed for ${label}.`);
+      };
+
+      const pushDataset = async (images, labels, addSample, kind) => {
+        for (let index = 0; index < images.length; index += 1) {
+          withTypedArray(images[index], "HEAPF64", (ptr) => {
+            addSample(ptr, images[index].length, labels[index]);
+          });
+
+          if (index % 200 === 0) {
+            setStatus(`Uploading ${kind} samples: ${index + 1} / ${images.length}`);
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+        }
+      };
+
+      const loadDatasetFromResources = async (resources) => {
+        isTraining = false;
+        toggleTrainingButton.textContent = "Start Training";
+        setStatus("Reading training files...");
+        setProgress(0);
+
+        try {
+          const [trainImageData, trainLabelData, validationImageData, validationLabelData] = await Promise.all([
+            parseImages(resources.trainImages),
+            parseLabels(resources.trainLabels),
+            parseImages(resources.validationImages),
+            parseLabels(resources.validationLabels)
+          ]);
+
+          if (trainImageData.images.length !== trainLabelData.length) {
+            throw new Error("Training image and label counts do not match.");
+          }
+          if (validationImageData.images.length !== validationLabelData.length) {
+            throw new Error("Validation image and label counts do not match.");
+          }
+          if (trainImageData.rows !== 28 || trainImageData.cols !== 28 || validationImageData.rows !== 28 || validationImageData.cols !== 28) {
+            throw new Error("This demo expects 28x28 images.");
+          }
+
+          uploadedInputSize = trainImageData.rows * trainImageData.cols;
+          uploadedClassCount = 10;
+          api.clearDatasets();
+          configureWasm();
+
+          await pushDataset(trainImageData.images, trainLabelData, api.addTrainingSample, "training");
+          await pushDataset(validationImageData.images, validationLabelData, api.addValidationSample, "validation");
+
+          api.reset();
+          validationIndexEl.value = "0";
+          setProgress(0);
+          setStatus(`Loaded ${trainImageData.images.length} training samples and ${validationImageData.images.length} validation samples.`);
+          render();
+        } catch (error) {
+          setProgress(0);
+          setStatus(error instanceof Error ? error.message : "Failed to load dataset.");
+        }
+      };
+
+      const loadDataset = async () => {
+        const files = [trainImagesEl.files[0], trainLabelsEl.files[0], validationImagesEl.files[0], validationLabelsEl.files[0]];
+        if (files.some((file) => !file)) {
+          setStatus("Choose all four IDX files before loading.");
+          return;
+        }
+
+        return loadDatasetFromResources({
+          trainImages: trainImagesEl.files[0],
+          trainLabels: trainLabelsEl.files[0],
+          validationImages: validationImagesEl.files[0],
+          validationLabels: validationLabelsEl.files[0]
+        });
+      };
+
+      const downloadDataset = async () => {
+        const source = DATASET_SOURCES[datasetTypeEl.value];
+        const labels = [
+          ["trainImages", "training images"],
+          ["trainLabels", "training labels"],
+          ["validationImages", "validation images"],
+          ["validationLabels", "validation labels"]
+        ];
+
+        try {
+          isTraining = false;
+          toggleTrainingButton.textContent = "Start Training";
+          setStatus(`Starting ${datasetTypeEl.value === "fashion" ? "Zalando Fashion-MNIST" : "MNIST"} download...`);
+          setProgress(0);
+
+          const resources = {};
+          for (let index = 0; index < labels.length; index += 1) {
+            const [key, label] = labels[index];
+            resources[key] = await fetchResource(source[key], label, index, labels.length);
+          }
+
+          setStatus("Download complete. Parsing dataset...");
+          await loadDatasetFromResources(resources);
+        } catch (error) {
+          setProgress(0);
+          setStatus(error instanceof Error ? error.message : "Failed to download dataset.");
+        }
+      };
+
+      const tick = (timestamp) => {
+        if (isTraining && timestamp - lastAnimationFrame > 16) {
+          const iterations = Math.max(1, Math.min(300, Number.parseInt(stepsPerFrameEl.value, 10) || 1));
+          for (let step = 0; step < iterations; step += 1) {
+            api.step();
+          }
+          lastAnimationFrame = timestamp;
+        }
+
+        render();
+        requestAnimationFrame(tick);
+      };
+
+      Module = await createModule();
+      api = {
+        reset: () => Module._wasm_demo_reset(),
+        step: () => Module._wasm_demo_step(),
+        layerCount: () => Module._wasm_demo_layer_count(),
+        layerSize: (layerIndex) => Module._wasm_demo_layer_size(layerIndex),
+        activation: (layerIndex, neuronIndex) => Module._wasm_demo_get_activation(layerIndex, neuronIndex),
+        weight: (layerIndex, neuronIndex, inputIndex) => Module._wasm_demo_get_weight(layerIndex, neuronIndex, inputIndex),
+        probability: (index) => Module._wasm_demo_get_probability(index),
+        prediction: () => Module._wasm_demo_get_prediction(),
+        loss: () => Module._wasm_demo_get_loss(),
+        stepCount: () => Module._wasm_demo_get_step_count(),
+        configure: (layersPtr, layersCount, inputSize, outputSize) => Module._wasm_demo_configure(layersPtr, layersCount, inputSize, outputSize),
+        clearDatasets: () => Module._wasm_demo_clear_datasets(),
+        addTrainingSample: (ptr, length, label) => Module._wasm_demo_add_training_sample(ptr, length, label),
+        addValidationSample: (ptr, length, label) => Module._wasm_demo_add_validation_sample(ptr, length, label),
+        selectValidation: (index) => Module._wasm_demo_select_validation_sample(index),
+        trainingSampleCount: () => Module._wasm_demo_get_training_sample_count(),
+        validationSampleCount: () => Module._wasm_demo_get_validation_sample_count(),
+        completedEpochs: () => Module._wasm_demo_get_completed_epochs(),
+        trainingProgress: () => Module._wasm_demo_get_training_progress(),
+        currentSampleIndex: () => Module._wasm_demo_get_current_sample_index(),
+        validationPixel: (index) => Module._wasm_demo_get_validation_pixel(index),
+        validationLabel: () => Module._wasm_demo_get_validation_label(),
+        classCount: () => Module._wasm_demo_get_class_count()
+      };
+
+      loadDatasetButton.addEventListener("click", loadDataset);
+      downloadDatasetButton.addEventListener("click", downloadDataset);
+
+      toggleTrainingButton.addEventListener("click", () => {
+        isTraining = !isTraining;
+        toggleTrainingButton.textContent = isTraining ? "Pause Training" : "Start Training";
+        if (isTraining && api.trainingSampleCount() === 0) {
+          isTraining = false;
+          toggleTrainingButton.textContent = "Start Training";
+          setStatus("Load a dataset before training.");
+          return;
+        }
+        setStatus(isTraining ? "Training is running." : "Training paused.");
+      });
+
+      resetTrainingButton.addEventListener("click", () => {
+        isTraining = false;
+        toggleTrainingButton.textContent = "Start Training";
+        configureWasm();
+        api.reset();
+        setStatus(api.trainingSampleCount() > 0 ? "Training state reset with the current architecture." : "Architecture reset. Load a dataset to continue.");
+        render();
+      });
+
+      validationIndexEl.addEventListener("input", () => {
+        updateValidation();
+      });
+
+      refreshValidationButton.addEventListener("click", () => {
+        updateValidation();
+      });
+
+      configureWasm();
+      api.reset();
+      render();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

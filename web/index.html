@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WASM Neural Network Demo</title>
+    <style>
+      :root {
+        --bg: #f4efe4;
+        --panel: rgba(255, 251, 244, 0.85);
+        --ink: #1b1d21;
+        --muted: #5f6470;
+        --edge-pos: rgba(222, 92, 58, 0.55);
+        --edge-neg: rgba(47, 96, 147, 0.55);
+        --accent: #d95f3d;
+        --accent-soft: #f0b48d;
+        --grid: rgba(27, 29, 33, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(240, 180, 141, 0.8), transparent 28rem),
+          radial-gradient(circle at bottom right, rgba(47, 96, 147, 0.18), transparent 22rem),
+          linear-gradient(135deg, #f5efe2, #efe7d7 55%, #f7f2ea);
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 3rem;
+      }
+
+      .hero {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.5rem, 6vw, 4.75rem);
+        line-height: 0.92;
+        letter-spacing: -0.08em;
+        text-transform: uppercase;
+      }
+
+      p {
+        margin: 0;
+        max-width: 42rem;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.8fr) minmax(18rem, 1fr);
+        gap: 1rem;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 1.25rem;
+        box-shadow: 0 1.2rem 3rem rgba(20, 16, 10, 0.08);
+      }
+
+      .canvas-panel {
+        padding: 0.8rem;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 1rem;
+        background:
+          linear-gradient(rgba(27, 29, 33, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(27, 29, 33, 0.03) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 250, 243, 0.9));
+        background-size: 2rem 2rem, 2rem 2rem, auto;
+      }
+
+      .sidebar {
+        padding: 1rem;
+        display: grid;
+        gap: 0.85rem;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1.2rem;
+        font: inherit;
+        cursor: pointer;
+        background: var(--ink);
+        color: white;
+        transition: transform 150ms ease, opacity 150ms ease;
+      }
+
+      button.secondary {
+        background: rgba(27, 29, 33, 0.08);
+        color: var(--ink);
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .stats {
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .stat {
+        padding: 0.9rem 1rem;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.55);
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      .stat-value {
+        font-size: 1.5rem;
+        letter-spacing: -0.04em;
+      }
+
+      .legend {
+        display: grid;
+        gap: 0.45rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .legend-line {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .swatch {
+        width: 1.2rem;
+        height: 0.4rem;
+        border-radius: 999px;
+      }
+
+      .footer-note {
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: clamp(2rem, 14vw, 3.5rem);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <h1>Neurons in Motion</h1>
+        <p>
+          This page runs the C++ perceptron in WebAssembly and trains a small XOR classifier one sample at a time.
+          Edge color shows the sign of each weight, edge thickness shows its magnitude, and each neuron brightens as its activation changes.
+        </p>
+        <p><a href="./mnist.html" style="color: var(--ink);">Open the uploaded MNIST / Zalando activation explorer</a></p>
+      </section>
+
+      <section class="layout">
+        <div class="panel canvas-panel">
+          <canvas id="network" width="920" height="620"></canvas>
+        </div>
+
+        <aside class="panel sidebar">
+          <div class="toolbar">
+            <button id="toggle">Pause</button>
+            <button id="reset" class="secondary">Reset</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">Training Step</div>
+              <div class="stat-value" id="step">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Loss</div>
+              <div class="stat-value" id="loss">0.0000</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Sample</div>
+              <div class="stat-value" id="sample">[0, 0] → 0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Prediction</div>
+              <div class="stat-value" id="prediction">0</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Class Probabilities</div>
+              <div class="stat-value" id="probabilities">0.500 / 0.500</div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <div class="legend-line"><span class="swatch" style="background: var(--edge-pos);"></span> positive weight</div>
+            <div class="legend-line"><span class="swatch" style="background: var(--edge-neg);"></span> negative weight</div>
+            <div class="legend-line"><span class="swatch" style="background: rgba(217,95,61,0.9); height: 1rem; width: 1rem; border-radius: 50%;"></span> stronger neuron activation</div>
+          </div>
+
+          <p class="footer-note">
+            Build with <code>make wasm-demo</code>, then serve the <code>dist/</code> folder with any static file server.
+          </p>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module">
+      import createModule from "./mlp_demo.js";
+
+      const canvas = document.getElementById("network");
+      const ctx = canvas.getContext("2d");
+      const stepEl = document.getElementById("step");
+      const lossEl = document.getElementById("loss");
+      const sampleEl = document.getElementById("sample");
+      const predictionEl = document.getElementById("prediction");
+      const probabilitiesEl = document.getElementById("probabilities");
+      const toggleButton = document.getElementById("toggle");
+      const resetButton = document.getElementById("reset");
+
+      let running = true;
+      let api = null;
+      let lastFrame = 0;
+      const frameInterval = 240;
+
+      const lerpColor = (value) => {
+        const clamped = Math.max(0, Math.min(1, value));
+        const a = [242, 225, 198];
+        const b = [217, 95, 61];
+        return `rgb(${a.map((start, i) => Math.round(start + (b[i] - start) * clamped)).join(",")})`;
+      };
+
+      const edgeColor = (weight) => weight >= 0 ? "rgba(222, 92, 58, 0.45)" : "rgba(47, 96, 147, 0.45)";
+
+      const getState = () => {
+        const layerCount = api.layerCount();
+        const layers = [];
+        const weights = [];
+
+        for (let layerIndex = 0; layerIndex < layerCount; layerIndex += 1) {
+          const size = api.layerSize(layerIndex);
+          const neurons = [];
+          for (let neuronIndex = 0; neuronIndex < size; neuronIndex += 1) {
+            neurons.push(api.activation(layerIndex, neuronIndex));
+          }
+          layers.push(neurons);
+        }
+
+        for (let layerIndex = 1; layerIndex < layerCount; layerIndex += 1) {
+          const currentWeights = [];
+          for (let neuronIndex = 0; neuronIndex < layers[layerIndex].length; neuronIndex += 1) {
+            const neuronWeights = [];
+            for (let inputIndex = 0; inputIndex < layers[layerIndex - 1].length; inputIndex += 1) {
+              neuronWeights.push(api.weight(layerIndex, neuronIndex, inputIndex));
+            }
+            currentWeights.push(neuronWeights);
+          }
+          weights.push(currentWeights);
+        }
+
+        const probabilities = [api.probability(0), api.probability(1)];
+        return {
+          layers,
+          weights,
+          step: api.stepCount(),
+          loss: api.loss(),
+          label: api.label(),
+          prediction: api.prediction(),
+          probabilities
+        };
+      };
+
+      const draw = (state) => {
+        const width = canvas.width;
+        const height = canvas.height;
+        ctx.clearRect(0, 0, width, height);
+
+        const layerGap = width / (state.layers.length + 1);
+        const positions = state.layers.map((neurons, layerIndex) => {
+          const x = layerGap * (layerIndex + 1);
+          const gapY = height / (neurons.length + 1);
+          return neurons.map((_, neuronIndex) => ({
+            x,
+            y: gapY * (neuronIndex + 1)
+          }));
+        });
+
+        for (let layerIndex = 1; layerIndex < state.layers.length; layerIndex += 1) {
+          for (let neuronIndex = 0; neuronIndex < state.layers[layerIndex].length; neuronIndex += 1) {
+            for (let inputIndex = 0; inputIndex < state.layers[layerIndex - 1].length; inputIndex += 1) {
+              const weight = state.weights[layerIndex - 1][neuronIndex][inputIndex];
+              ctx.beginPath();
+              ctx.moveTo(positions[layerIndex - 1][inputIndex].x, positions[layerIndex - 1][inputIndex].y);
+              ctx.lineTo(positions[layerIndex][neuronIndex].x, positions[layerIndex][neuronIndex].y);
+              ctx.strokeStyle = edgeColor(weight);
+              ctx.lineWidth = 1 + Math.min(7, Math.abs(weight) * 18);
+              ctx.stroke();
+            }
+          }
+        }
+
+        state.layers.forEach((neurons, layerIndex) => {
+          neurons.forEach((activation, neuronIndex) => {
+            const { x, y } = positions[layerIndex][neuronIndex];
+            const normalized = 1 / (1 + Math.exp(-activation * 2.4));
+            const radius = 22 + normalized * 12;
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius + 10, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(217, 95, 61, ${0.08 + normalized * 0.16})`;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = lerpColor(normalized);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(27, 29, 33, 0.16)";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.fillStyle = "#1b1d21";
+            ctx.font = "600 13px 'Avenir Next', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(activation.toFixed(2), x, y + 4);
+          });
+        });
+      };
+
+      const updateHud = (state) => {
+        stepEl.textContent = String(state.step);
+        lossEl.textContent = state.loss.toFixed(4);
+        sampleEl.textContent = `[${state.layers[0].map((value) => value.toFixed(0)).join(", ")}] → ${state.label.toFixed(0)}`;
+        predictionEl.textContent = state.prediction.toFixed(0);
+        probabilitiesEl.textContent = state.probabilities.map((value) => value.toFixed(3)).join(" / ");
+      };
+
+      const render = () => {
+        const state = getState();
+        draw(state);
+        updateHud(state);
+      };
+
+      const tick = (timestamp) => {
+        if (running && timestamp - lastFrame >= frameInterval) {
+          api.step();
+          lastFrame = timestamp;
+        }
+        render();
+        requestAnimationFrame(tick);
+      };
+
+      const Module = await createModule();
+      api = {
+        reset: () => Module._wasm_demo_reset(),
+        step: () => Module._wasm_demo_step(),
+        layerCount: () => Module._wasm_demo_layer_count(),
+        layerSize: (layerIndex) => Module._wasm_demo_layer_size(layerIndex),
+        activation: (layerIndex, neuronIndex) => Module._wasm_demo_get_activation(layerIndex, neuronIndex),
+        weight: (layerIndex, neuronIndex, inputIndex) => Module._wasm_demo_get_weight(layerIndex, neuronIndex, inputIndex),
+        probability: (index) => Module._wasm_demo_get_probability(index),
+        label: () => Module._wasm_demo_get_label(),
+        prediction: () => Module._wasm_demo_get_prediction(),
+        loss: () => Module._wasm_demo_get_loss(),
+        stepCount: () => Module._wasm_demo_get_step_count()
+      };
+
+      toggleButton.addEventListener("click", () => {
+        running = !running;
+        toggleButton.textContent = running ? "Pause" : "Resume";
+      });
+
+      resetButton.addEventListener("click", () => {
+        api.reset();
+        render();
+      });
+
+      api.reset();
+      render();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
